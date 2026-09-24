@@ -1,0 +1,6 @@
+src
+tests
+coverage
+*.config.ts
+tsconfig.json
+bun.lock

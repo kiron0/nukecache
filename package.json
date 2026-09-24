@@ -1,0 +1,84 @@
+{
+  "name": "nukecache",
+  "version": "0.1.0",
+  "description": "Detect, inspect, and safely clear development caches from one CLI.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "nukecache": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "license": "MIT",
+  "author": "Toufiq Hasan Kiron",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiron0/nukecache"
+  },
+  "bugs": {
+    "url": "https://github.com/kiron0/nukecache/issues"
+  },
+  "homepage": "https://github.com/kiron0/nukecache#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "bun@1.3.9",
+  "scripts": {
+    "build": "tsup",
+    "build:watch": "tsup --watch",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check && npm run test:cli",
+    "test": "vitest run",
+    "test:cli": "npm run build && node tests/cli-e2e.mjs",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.4",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "jiti": "^2.7.0",
+    "prettier": "^3.9.9",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.1",
+    "vitest": "^4.1.11"
+  },
+  "keywords": [
+    "cache",
+    "clean",
+    "cli",
+    "nextjs",
+    "vite",
+    "turborepo",
+    "typescript",
+    "eslint",
+    "developer-tools"
+  ]
+}
