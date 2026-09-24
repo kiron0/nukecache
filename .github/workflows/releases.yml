@@ -1,0 +1,218 @@
+name: Releases
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release-if-missing:
+    name: Build verified GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event.workflow_run.conclusion == 'success'
+      }}
+    env:
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+    steps:
+      - name: Checkout verified commit
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ env.TARGET_SHA }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(npm pkg get version | tr -d '"')
+          PACKAGE_NAME=$(npm pkg get name | tr -d '"')
+          DESCRIPTION=$(npm pkg get description | tr -d '"')
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid package version: $VERSION" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "tag=v$VERSION"
+            echo "title=$PACKAGE_NAME v$VERSION"
+            echo "package_name=$PACKAGE_NAME"
+            echo "description=$DESCRIPTION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check whether release exists
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          if gh release view "${{ steps.meta.outputs.tag }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.meta.outputs.tag }} already exists; nothing to do."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.meta.outputs.tag }} is missing; validation continues."
+          fi
+
+      - name: Install locked dependencies
+        if: steps.release.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Validate TypeScript package
+        if: steps.release.outputs.exists == 'false'
+        run: npm run check
+
+      - name: Run compiled CLI end-to-end test
+        if: steps.release.outputs.exists == 'false'
+        run: npm run test:cli
+
+      - name: Build npm tarball
+        id: pack
+        if: steps.release.outputs.exists == 'false'
+        shell: bash
+        run: |
+          mkdir -p release-artifacts
+          npm pack --pack-destination release-artifacts
+          TARBALL=$(find release-artifacts -maxdepth 1 -type f -name '*.tgz' -print -quit)
+
+          if [ -z "$TARBALL" ]; then
+            echo "npm pack did not produce a tarball." >&2
+            exit 1
+          fi
+
+          SHA256=$(sha256sum "$TARBALL" | cut -d ' ' -f 1)
+          {
+            echo "tarball=$TARBALL"
+            echo "sha256=$SHA256"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Verify or create version tag
+        if: steps.release.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+
+          if ! git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+              git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+            else
+              git config user.name "github-actions[bot]"
+              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git tag "$TAG" "$TARGET_SHA"
+              git push origin "refs/tags/$TAG"
+            fi
+          fi
+
+          TAG_SHA=$(git rev-list -n 1 "$TAG")
+          if [ "$TAG_SHA" != "$TARGET_SHA" ]; then
+            echo "Tag $TAG points to $TAG_SHA, expected $TARGET_SHA." >&2
+            exit 1
+          fi
+
+      - name: Write detailed release description
+        if: steps.release.outputs.exists == 'false'
+        shell: bash
+        run: |
+          VERSION="${{ steps.meta.outputs.version }}"
+          awk -v version="$VERSION" '
+            $0 == "## " version { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > release-changes.md
+
+          cat > release-notes.md <<EOF
+          # nukecache v$VERSION
+
+          > ${{ steps.meta.outputs.description }}
+
+          ## Release highlights
+
+          - Detects Next.js, Vite, Turborepo, TypeScript, ESLint, and generic \
+            \`node_modules/.cache\` caches.
+          - Reports exact cache size, tool ownership, purpose, safety level, and cleanup effect.
+          - Supports interactive cleanup, dry runs, JSON output, safe non-interactive cleanup, and custom project config.
+          - Protects Git-tracked content, source files, lockfiles, environment files, project roots, filesystem roots, and paths outside project boundaries.
+          - Treats symlinks as links only; cleanup never traverses their destinations.
+
+          ## Install
+
+          \`\`\`bash
+          npm install --global ${{ steps.meta.outputs.package_name }}@$VERSION
+          \`\`\`
+
+          ## Main commands
+
+          \`\`\`bash
+          nukecache
+          nukecache list
+          nukecache list --json
+          nukecache --dry-run
+          nukecache clean --safe --yes
+          \`\`\`
+
+          ## Package details
+
+          - Runtime: Node.js 20+
+          - Maintained code: 100% TypeScript
+          - Outputs: ESM, CommonJS, declarations, executable CLI
+          - npm tarball SHA-256: \`${{ steps.pack.outputs.sha256 }}\`
+          - License: MIT
+
+          ## Verification
+
+          Release commit passed formatting, ESLint, strict TypeScript checks, unit tests, coverage thresholds, build validation, CLI end-to-end tests, and npm packaging.
+
+          ## Changes in this version
+
+          EOF
+
+          if [ -s release-changes.md ]; then
+            cat release-changes.md >> release-notes.md
+          else
+            echo "See commit history for changes included in this version." >> release-notes.md
+          fi
+
+          cat >> release-notes.md <<EOF
+
+          ---
+
+          **Full changelog:** https://github.com/${{ github.repository }}/commits/${{ steps.meta.outputs.tag }}
+          EOF
+
+      - name: Create GitHub release
+        if: steps.release.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.meta.outputs.tag }}" \
+            "${{ steps.pack.outputs.tarball }}#npm package tarball" \
+            --repo "${{ github.repository }}" \
+            --target "$TARGET_SHA" \
+            --verify-tag \
+            --title "${{ steps.meta.outputs.title }}" \
+            --notes-file release-notes.md
