@@ -6,5 +6,4 @@
 - Add exact size calculation, interactive selection, dry runs, JSON output, and cleanup summaries.
 - Add Git tracking checks, project-boundary enforcement, symlink protection, protected-path guards, and post-delete verification.
 - Add custom project configuration and public programmatic API.
-- Add CI-gated GitHub releases with detailed release notes and npm tarball assets.
-- Keep maintained source, configuration, and tests entirely in TypeScript.
+- Add CI-gated GitHub releases with compact changelog notes.

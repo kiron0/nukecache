@@ -46,8 +46,6 @@ jobs:
         shell: bash
         run: |
           VERSION=$(npm pkg get version | tr -d '"')
-          PACKAGE_NAME=$(npm pkg get name | tr -d '"')
-          DESCRIPTION=$(npm pkg get description | tr -d '"')
 
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid package version: $VERSION" >&2
@@ -57,9 +55,6 @@ jobs:
           {
             echo "version=$VERSION"
             echo "tag=v$VERSION"
-            echo "title=$PACKAGE_NAME v$VERSION"
-            echo "package_name=$PACKAGE_NAME"
-            echo "description=$DESCRIPTION"
           } >> "$GITHUB_OUTPUT"
 
       - name: Check whether release exists
@@ -80,33 +75,13 @@ jobs:
         if: steps.release.outputs.exists == 'false'
         run: npm ci
 
-      - name: Validate TypeScript package
+      - name: Validate package
         if: steps.release.outputs.exists == 'false'
         run: npm run check
 
       - name: Run compiled CLI end-to-end test
         if: steps.release.outputs.exists == 'false'
         run: npm run test:cli
-
-      - name: Build npm tarball
-        id: pack
-        if: steps.release.outputs.exists == 'false'
-        shell: bash
-        run: |
-          mkdir -p release-artifacts
-          npm pack --pack-destination release-artifacts
-          TARBALL=$(find release-artifacts -maxdepth 1 -type f -name '*.tgz' -print -quit)
-
-          if [ -z "$TARBALL" ]; then
-            echo "npm pack did not produce a tarball." >&2
-            exit 1
-          fi
-
-          SHA256=$(sha256sum "$TARBALL" | cut -d ' ' -f 1)
-          {
-            echo "tarball=$TARBALL"
-            echo "sha256=$SHA256"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Verify or create version tag
         if: steps.release.outputs.exists == 'false'
@@ -133,7 +108,7 @@ jobs:
             exit 1
           fi
 
-      - name: Write detailed release description
+      - name: Write release notes
         if: steps.release.outputs.exists == 'false'
         shell: bash
         run: |
@@ -145,48 +120,7 @@ jobs:
           ' CHANGELOG.md > release-changes.md
 
           cat > release-notes.md <<EOF
-          # nukecache v$VERSION
-
-          > ${{ steps.meta.outputs.description }}
-
-          ## Release highlights
-
-          - Detects Next.js, Vite, Turborepo, TypeScript, ESLint, and generic \
-            \`node_modules/.cache\` caches.
-          - Reports exact cache size, tool ownership, purpose, safety level, and cleanup effect.
-          - Supports interactive cleanup, dry runs, JSON output, safe non-interactive cleanup, and custom project config.
-          - Protects Git-tracked content, source files, lockfiles, environment files, project roots, filesystem roots, and paths outside project boundaries.
-          - Treats symlinks as links only; cleanup never traverses their destinations.
-
-          ## Install
-
-          \`\`\`bash
-          npm install --global ${{ steps.meta.outputs.package_name }}@$VERSION
-          \`\`\`
-
-          ## Main commands
-
-          \`\`\`bash
-          nukecache
-          nukecache list
-          nukecache list --json
-          nukecache --dry-run
-          nukecache clean --safe --yes
-          \`\`\`
-
-          ## Package details
-
-          - Runtime: Node.js 20+
-          - Maintained code: 100% TypeScript
-          - Outputs: ESM, CommonJS, declarations, executable CLI
-          - npm tarball SHA-256: \`${{ steps.pack.outputs.sha256 }}\`
-          - License: MIT
-
-          ## Verification
-
-          Release commit passed formatting, ESLint, strict TypeScript checks, unit tests, coverage thresholds, build validation, CLI end-to-end tests, and npm packaging.
-
-          ## Changes in this version
+          ## What's Changed
 
           EOF
 
@@ -198,7 +132,11 @@ jobs:
 
           cat >> release-notes.md <<EOF
 
-          ---
+          ## Install
+
+          \`\`\`bash
+          npm install -g nukecache
+          \`\`\`
 
           **Full changelog:** https://github.com/${{ github.repository }}/commits/${{ steps.meta.outputs.tag }}
           EOF
@@ -210,9 +148,8 @@ jobs:
         shell: bash
         run: |
           gh release create "${{ steps.meta.outputs.tag }}" \
-            "${{ steps.pack.outputs.tarball }}#npm package tarball" \
             --repo "${{ github.repository }}" \
             --target "$TARGET_SHA" \
             --verify-tag \
-            --title "${{ steps.meta.outputs.title }}" \
+            --title "${{ steps.meta.outputs.tag }}" \
             --notes-file release-notes.md
