@@ -3,16 +3,20 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { builtInDetectors } from "./detectors";
 import { candidate, pathExists, slug } from "./detectors/helpers";
+import { detectPackageManagerCaches } from "./detectors/package-managers";
 import { calculateSize } from "./filesystem/size";
 import { loadConfig } from "./project/config";
 import { isTrackedByGit } from "./project/git";
+import { detectPackageManagers } from "./project/package-manager";
 import { createProjectContext } from "./project/root";
 import type {
   CacheCandidate,
   CacheTarget,
   CustomCacheDefinition,
+  DetectionWarning,
   DetectOptions,
   NukecacheConfig,
+  PackageManager,
   ProjectContext,
 } from "./types";
 
@@ -20,6 +24,8 @@ export interface DetectionResult {
   context: ProjectContext;
   config: NukecacheConfig;
   targets: CacheTarget[];
+  packageManagers: PackageManager[];
+  warnings: DetectionWarning[];
 }
 
 export async function detectCaches(
@@ -27,38 +33,66 @@ export async function detectCaches(
 ): Promise<DetectionResult> {
   const context = await createProjectContext(options.cwd);
   const config = options.config ?? (await loadConfig(context.root));
-  const detected = (
-    await Promise.all(
-      builtInDetectors.map((detector) => detector.detect(context)),
-    )
-  ).flat();
-  const custom = await detectCustomCaches(
-    context,
-    config.custom ?? [],
-    config.include ?? [],
-  );
+  const scope = options.scope ?? (config.showGlobal ? "all" : "project");
+  const includeProject = scope === "project" || scope === "all";
+  const includeGlobal = scope === "global" || scope === "all";
+  const packageManagers =
+    options.packageManagers ?? (await detectPackageManagers(context));
+  const detected = includeProject
+    ? (
+        await Promise.all(
+          builtInDetectors.map((detector) => detector.detect(context)),
+        )
+      ).flat()
+    : [];
+  const custom = includeProject
+    ? await detectCustomCaches(
+        context,
+        config.custom ?? [],
+        config.include ?? [],
+      )
+    : [];
+  const packageManagerDetection = includeGlobal
+    ? await detectPackageManagerCaches(context, packageManagers)
+    : { candidates: [], warnings: [] };
   const ignored = new Set([
     ...(config.ignore ?? []),
     ...(options.ignore ?? []),
   ]);
   const filtered = removeOverlaps(
-    [...detected, ...custom].filter(
-      (target) =>
-        !ignored.has(target.id) &&
-        !ignored.has(target.tool) &&
-        !ignored.has(target.path),
+    [...detected, ...custom, ...packageManagerDetection.candidates].filter(
+      (target) => {
+        const scopeIncluded = scope === "all" || target.scope === scope;
+        return (
+          scopeIncluded &&
+          !ignored.has(target.id) &&
+          !ignored.has(target.tool) &&
+          !ignored.has(target.path)
+        );
+      },
     ),
     context.root,
   );
 
-  const targets = await Promise.all(
+  const enriched = await Promise.all(
     filtered.map((target) => enrichTarget(context, target)),
+  );
+  const targets = enriched.filter(
+    (target): target is CacheTarget => target !== undefined,
   );
   targets.sort(
     (left, right) =>
       right.size - left.size || left.path.localeCompare(right.path),
   );
-  return { context, config, targets };
+  return {
+    context,
+    config,
+    targets,
+    packageManagers,
+    warnings: packageManagerDetection.warnings.filter(
+      (warning) => !ignored.has(warning.tool),
+    ),
+  };
 }
 
 async function detectCustomCaches(
@@ -122,6 +156,15 @@ function resolveCandidatePath(root: string, path: string): string {
   return absolutePath;
 }
 
+function absoluteCandidatePath(root: string, target: CacheCandidate): string {
+  if (target.scope === "project")
+    return resolveCandidatePath(root, target.path);
+  if (!isAbsolute(target.path)) {
+    throw new Error(`Global cache path must be absolute: ${target.path}`);
+  }
+  return resolve(target.path);
+}
+
 function removeOverlaps(
   candidates: CacheCandidate[],
   root: string,
@@ -134,7 +177,7 @@ function removeOverlaps(
   const accepted: Array<CacheCandidate & { absolutePath: string }> = [];
 
   for (const item of sorted) {
-    const absolutePath = resolveCandidatePath(root, item.path);
+    const absolutePath = absoluteCandidatePath(root, item);
     const duplicateOrChild = accepted.some((parent) => {
       const childPath = relative(parent.absolutePath, absolutePath);
       return (
@@ -156,19 +199,30 @@ function removeOverlaps(
     tool: item.tool,
     description: item.description,
     consequences: item.consequences,
+    ...(item.cleanup ? { cleanup: item.cleanup } : {}),
   }));
 }
 
 async function enrichTarget(
   context: ProjectContext,
   target: CacheCandidate,
-): Promise<CacheTarget> {
-  const absolutePath = resolveCandidatePath(context.root, target.path);
-  const [size, trackedByGit, details] = await Promise.all([
-    calculateSize(absolutePath),
-    isTrackedByGit(context.root, absolutePath),
-    lstat(absolutePath),
-  ]);
+): Promise<CacheTarget | undefined> {
+  const absolutePath = absoluteCandidatePath(context.root, target);
+  let size: number;
+  let trackedByGit: boolean;
+  let details: Awaited<ReturnType<typeof lstat>>;
+  try {
+    [size, trackedByGit, details] = await Promise.all([
+      calculateSize(absolutePath),
+      target.scope === "project"
+        ? isTrackedByGit(context.root, absolutePath)
+        : Promise.resolve(false),
+      lstat(absolutePath),
+    ]);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 
   return {
     ...target,

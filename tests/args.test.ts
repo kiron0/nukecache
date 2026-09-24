@@ -8,6 +8,8 @@ describe("parseCliArgs", () => {
       all: false,
       command: "clean",
       dryRun: false,
+      force: false,
+      global: false,
       help: false,
       ignore: [],
       json: false,
@@ -15,6 +17,20 @@ describe("parseCliArgs", () => {
       safe: false,
       version: false,
       yes: false,
+    });
+  });
+
+  it("parses package-manager and global cleanup options", () => {
+    expect(parseCliArgs(["pnpm", "--force", "--yes"])).toMatchObject({
+      command: "clean",
+      manager: "pnpm",
+      global: true,
+      force: true,
+      yes: true,
+    });
+    expect(parseCliArgs(["list", "--global"])).toMatchObject({
+      command: "list",
+      global: true,
     });
   });
 
@@ -43,6 +59,12 @@ describe("parseCliArgs", () => {
     );
     expect(() => parseCliArgs(["list", "--dry-run"])).toThrow(
       "list does not accept",
+    );
+    expect(() => parseCliArgs(["npm", "--project"])).toThrow(
+      "cannot be combined",
+    );
+    expect(() => parseCliArgs(["--global", "--yes", "--safe"])).toThrow(
+      "requires --force",
     );
     expect(() => parseCliArgs(["--wat"])).toThrow("Unknown option");
     expect(() => parseCliArgs(["--cwd"])).toThrow("Missing value");

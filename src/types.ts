@@ -1,6 +1,15 @@
 export type CacheScope = "project" | "global";
+export type DetectionScope = CacheScope | "all";
+export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
 export type CacheSafety =
   "safe" | "rebuild" | "reinstall" | "global" | "dangerous";
+
+export interface NativeCleanupCommand {
+  kind: "command";
+  command: PackageManager;
+  args: string[];
+  cwd: string;
+}
 
 export interface ProjectContext {
   cwd: string;
@@ -17,6 +26,7 @@ export interface CacheCandidate {
   tool: string;
   description: string;
   consequences: string[];
+  cleanup?: NativeCleanupCommand;
 }
 
 export interface CacheTarget extends CacheCandidate {
@@ -54,6 +64,13 @@ export interface DetectOptions {
   cwd?: string;
   ignore?: string[];
   config?: NukecacheConfig;
+  scope?: DetectionScope;
+  packageManagers?: PackageManager[];
+}
+
+export interface DetectionWarning {
+  tool: string;
+  message: string;
 }
 
 export interface CleanupPlanItem {

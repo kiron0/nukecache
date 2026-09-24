@@ -6,16 +6,32 @@ export async function calculateSize(path: string): Promise<number> {
   if (!details.isDirectory() || details.isSymbolicLink()) return details.size;
 
   let total = details.size;
-  const directory = await opendir(path);
+  let directory;
+  try {
+    directory = await opendir(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw error;
+  }
 
   for await (const entry of directory) {
     const entryPath = join(path, entry.name);
-    const entryDetails = await lstat(entryPath);
+    let entryDetails;
+    try {
+      entryDetails = await lstat(entryPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
 
     if (entryDetails.isSymbolicLink()) {
       total += entryDetails.size;
     } else if (entryDetails.isDirectory()) {
-      total += await calculateSize(entryPath);
+      try {
+        total += await calculateSize(entryPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     } else {
       total += entryDetails.size;
     }

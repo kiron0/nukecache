@@ -1,4 +1,9 @@
-import type { CacheTarget, CleanupPlan, CleanupResult } from "./types";
+import type {
+  CacheTarget,
+  CleanupPlan,
+  CleanupResult,
+  DetectionWarning,
+} from "./types";
 
 const UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 
@@ -29,9 +34,20 @@ export function formatTarget(target: CacheTarget): string {
 
 export function formatList(targets: CacheTarget[]): string {
   if (targets.length === 0) return "No supported development caches found.";
-  const body = targets.map(formatTarget).join("\n\n");
+  const sections = (["project", "global"] as const).flatMap((scope) => {
+    const scoped = targets.filter((target) => target.scope === scope);
+    if (scoped.length === 0) return [];
+    const title = scope === "project" ? "Project caches" : "Global caches";
+    return [`${title}\n\n${scoped.map(formatTarget).join("\n\n")}`];
+  });
   const total = targets.reduce((sum, target) => sum + target.size, 0);
-  return `Detected caches\n\n${body}\n\nTotal: ${formatBytes(total)}`;
+  return `Detected caches\n\n${sections.join("\n\n")}\n\nTotal: ${formatBytes(total)}`;
+}
+
+export function formatWarnings(warnings: DetectionWarning[]): string {
+  return warnings
+    .map((warning) => `Warning (${warning.tool}): ${warning.message}`)
+    .join("\n");
 }
 
 export function formatPlan(plan: CleanupPlan): string {
@@ -42,9 +58,12 @@ export function formatPlan(plan: CleanupPlan): string {
   else {
     lines.push("REMOVE:");
     lines.push(
-      ...removable.map(
-        (item) => `  ${item.target.path}  ${formatBytes(item.target.size)}`,
-      ),
+      ...removable.map((item) => {
+        const method = item.target.cleanup
+          ? `  [${item.target.cleanup.command} native cleanup]`
+          : "";
+        return `  ${item.target.path}  ${formatBytes(item.target.size)}${method}`;
+      }),
     );
   }
   if (skipped.length > 0) {
@@ -55,7 +74,7 @@ export function formatPlan(plan: CleanupPlan): string {
       ),
     );
   }
-  lines.push("", `Estimated: ${formatBytes(plan.estimatedBytes)}`);
+  lines.push("", `Selected size: ${formatBytes(plan.estimatedBytes)}`);
   return lines.join("\n");
 }
 

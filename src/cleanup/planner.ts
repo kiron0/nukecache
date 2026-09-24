@@ -3,6 +3,8 @@ import type { CacheTarget, CleanupPlan, CleanupPlanItem } from "../types";
 export interface PlanOptions {
   selectedIds?: Iterable<string>;
   safeOnly?: boolean;
+  allowGlobal?: boolean;
+  allowRebuild?: boolean;
 }
 
 export function createCleanupPlan(
@@ -14,6 +16,7 @@ export function createCleanupPlan(
     ? new Set(options.selectedIds)
     : undefined;
   const safeOnly = options.safeOnly ?? true;
+  const allowRebuild = options.allowRebuild ?? !safeOnly;
 
   const items: CleanupPlanItem[] = targets.map((target) => {
     if (selected && !selected.has(target.id)) {
@@ -22,10 +25,19 @@ export function createCleanupPlan(
     if (target.trackedByGit) {
       return { target, action: "skip", reason: "Tracked by Git" };
     }
-    if (target.scope !== "project") {
-      return { target, action: "skip", reason: "Outside project scope" };
+    if (target.scope === "global") {
+      if (!options.allowGlobal) {
+        return { target, action: "skip", reason: "Global cleanup not enabled" };
+      }
+      if (target.safety !== "global" || !target.cleanup) {
+        return { target, action: "skip", reason: "Unsupported global cleanup" };
+      }
+      return { target, action: "remove" };
     }
-    if (safeOnly && target.safety !== "safe") {
+    if (target.safety === "rebuild" && allowRebuild) {
+      return { target, action: "remove" };
+    }
+    if (target.safety !== "safe") {
       return {
         target,
         action: "skip",

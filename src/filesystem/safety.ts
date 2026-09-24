@@ -15,7 +15,12 @@ const PROTECTED_NAMES = new Set([
   ".env.local",
   ".env.production",
   "app",
+  "bun.lock",
+  "bun.lockb",
   "components",
+  "data",
+  "deno.lock",
+  "npm-shrinkwrap.json",
   "package-lock.json",
   "package.json",
   "pages",
@@ -47,7 +52,7 @@ export async function assertSafeProjectTarget(
 
   const relativePath = relative(root, target);
   const parts = relativePath.split(sep);
-  if (parts.some((part) => PROTECTED_NAMES.has(part))) {
+  if (parts.some(isProtectedName)) {
     throw new Error(
       `Protected project path cannot be removed: ${relativePath}`,
     );
@@ -70,9 +75,19 @@ export async function assertSafeProjectTarget(
     );
   }
 
-  if (PROTECTED_NAMES.has(basename(target))) {
+  if (isProtectedName(basename(target)) || isDatabaseFile(basename(target))) {
     throw new Error(
       `Protected project path cannot be removed: ${relativePath}`,
     );
   }
+}
+
+function isProtectedName(name: string): boolean {
+  return (
+    PROTECTED_NAMES.has(name) || name === ".env" || name.startsWith(".env.")
+  );
+}
+
+function isDatabaseFile(name: string): boolean {
+  return /\.(?:db|sqlite|sqlite3)$/iu.test(name);
 }

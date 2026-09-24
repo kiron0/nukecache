@@ -79,4 +79,31 @@ describe("project detection", () => {
     const result = await detectCaches({ cwd: root });
     expect(result.targets).toHaveLength(0);
   });
+
+  it("detects additional build and test tool caches", async () => {
+    const root = await project();
+    for (const path of [
+      ".nx/cache",
+      ".parcel-cache",
+      ".jest-cache",
+      ".vitest",
+      ".babel-cache",
+      ".swc",
+    ]) {
+      await mkdir(join(root, path), { recursive: true });
+      await writeFile(join(root, path, "entry"), path);
+    }
+
+    const result = await detectCaches({ cwd: root });
+    expect(result.targets.map((target) => target.tool)).toEqual(
+      expect.arrayContaining([
+        "nx",
+        "parcel",
+        "jest",
+        "vitest",
+        "babel",
+        "swc",
+      ]),
+    );
+  });
 });

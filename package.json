@@ -1,6 +1,6 @@
 {
   "name": "nukecache",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Detect, inspect, and safely clear development caches from one CLI.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -79,6 +79,10 @@
     "turborepo",
     "typescript",
     "eslint",
+    "npm",
+    "pnpm",
+    "yarn",
+    "bun",
     "developer-tools"
   ]
 }

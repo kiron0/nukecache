@@ -3,6 +3,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -68,8 +69,38 @@ describe("cleanup", () => {
     ]);
     expect(global.items[0]).toMatchObject({
       action: "skip",
-      reason: "Outside project scope",
+      reason: "Global cleanup not enabled",
     });
+  });
+
+  it("requires explicit allowances for rebuildable and global targets", () => {
+    const rebuild = createCleanupPlan(
+      "/tmp/project",
+      [fixtureTarget({ safety: "rebuild" })],
+      { allowRebuild: true },
+    );
+    expect(rebuild.items[0]?.action).toBe("remove");
+
+    const cleanup = {
+      kind: "command" as const,
+      command: "npm" as const,
+      args: ["cache", "clean", "--force", "--cache=/tmp/npm-cache"],
+      cwd: "/tmp/project",
+    };
+    const global = createCleanupPlan(
+      "/tmp/project",
+      [
+        fixtureTarget({
+          scope: "global",
+          safety: "global",
+          tool: "npm",
+          absolutePath: "/tmp/npm-cache/_cacache",
+          cleanup,
+        }),
+      ],
+      { allowGlobal: true },
+    );
+    expect(global.items[0]?.action).toBe("remove");
   });
 
   it("reports skips and independent deletion failures", async () => {
@@ -88,6 +119,62 @@ describe("cleanup", () => {
     const result = await executeCleanup(plan);
     expect(result.failed[0]?.error).toContain("Protected project path");
     expect(result.skipped[0]?.reason).toBe("Tracked by Git");
+  });
+
+  it("uses allowlisted native cleanup for global caches", async () => {
+    const root = await project();
+    const npmRoot = await mkdtemp(join(tmpdir(), "nukecache-npm-cache-"));
+    const cache = join(npmRoot, "_cacache");
+    await mkdir(cache);
+    await writeFile(join(cache, "entry"), "cached");
+    const target = fixtureTarget({
+      id: "npm-cache",
+      name: "npm cache",
+      path: cache,
+      absolutePath: cache,
+      scope: "global",
+      safety: "global",
+      tool: "npm",
+      size: 6,
+      cleanup: {
+        kind: "command",
+        command: "npm",
+        args: ["cache", "clean", "--force", `--cache=${npmRoot}`],
+        cwd: root,
+      },
+    });
+    const plan = createCleanupPlan(root, [target], { allowGlobal: true });
+    const result = await executeCleanup(plan, {
+      commandRunner: async (command, args) => {
+        expect(command).toBe("npm");
+        expect(args).toContain("--force");
+        await rm(cache, { recursive: true });
+        return "";
+      },
+    });
+
+    expect(result.failed).toEqual([]);
+    expect(result.bytesFreed).toBe(6);
+  });
+
+  it("rejects native cleanup commands outside the allowlist", async () => {
+    const root = await project();
+    const cache = join(root, ".cache");
+    await mkdir(cache);
+    const target = fixtureTarget({
+      absolutePath: cache,
+      tool: "npm",
+      cleanup: {
+        kind: "command",
+        command: "npm",
+        args: ["exec", "something"],
+        cwd: root,
+      },
+    });
+    const result = await executeCleanup(createCleanupPlan(root, [target]), {
+      commandRunner: () => Promise.resolve(""),
+    });
+    expect(result.failed[0]?.error).toContain("Unsupported native cleanup");
   });
 
   it("removes a symlink itself without touching its destination", async () => {
@@ -130,6 +217,12 @@ describe("cleanup", () => {
     await expect(
       assertSafeProjectTarget(root, join(root, "src")),
     ).rejects.toThrow("Protected project path");
+    for (const name of [".env.test", "bun.lock", "app.sqlite3"]) {
+      await writeFile(join(root, name), "protected");
+      await expect(
+        assertSafeProjectTarget(root, join(root, name)),
+      ).rejects.toThrow("Protected project path");
+    }
   });
 });
 

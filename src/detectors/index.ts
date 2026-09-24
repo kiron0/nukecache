@@ -1,5 +1,6 @@
 import type { CacheDetector } from "../types";
 import { eslintDetector } from "./eslint";
+import { extendedToolDetector } from "./extended";
 import { genericDetector } from "./generic";
 import { nextDetector } from "./next";
 import { turboDetector } from "./turbo";
@@ -12,11 +13,13 @@ export const builtInDetectors: readonly CacheDetector[] = [
   turboDetector,
   eslintDetector,
   typescriptDetector,
+  extendedToolDetector,
   genericDetector,
 ];
 
 export {
   eslintDetector,
+  extendedToolDetector,
   genericDetector,
   nextDetector,
   turboDetector,

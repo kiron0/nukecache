@@ -20,6 +20,10 @@ describe("output", () => {
   it("formats human-readable cache lists", () => {
     const target = fixtureTarget();
     expect(formatList([target])).toContain("Vite cache");
+    expect(formatList([target])).toContain("Project caches");
+    expect(
+      formatList([{ ...target, scope: "global", safety: "global" }]),
+    ).toContain("Global caches");
     expect(formatList([target])).toContain("Total: 2.0 KB");
     expect(formatList([])).toContain("No supported");
     expect(formatTarget({ ...target, trackedByGit: true })).toContain(
