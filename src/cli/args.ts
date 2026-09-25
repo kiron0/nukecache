@@ -1,19 +1,23 @@
 import { isPackageManager } from "../project/package-manager";
 import type { PackageManager } from "../types";
 
-export type CliCommand = "clean" | "list";
+export type CliCommand = "clean" | "explain" | "largest" | "list" | "old";
 
 export interface CliArgs {
   all: boolean;
   command: CliCommand;
   cwd?: string;
   dryRun: boolean;
+  days?: number;
+  explainTarget?: string;
   force: boolean;
   global: boolean;
   help: boolean;
   ignore: string[];
   json: boolean;
   manager?: PackageManager;
+  limit?: number;
+  noUpdateCheck: boolean;
   project: boolean;
   safe: boolean;
   version: boolean;
@@ -30,6 +34,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     help: false,
     ignore: [],
     json: false,
+    noUpdateCheck: false,
     project: false,
     safe: false,
     version: false,
@@ -39,10 +44,25 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
-    if (arg === "list" || arg === "clean") {
+    if (
+      arg === "list" ||
+      arg === "clean" ||
+      arg === "largest" ||
+      arg === "old" ||
+      arg === "explain"
+    ) {
       if (commandSeen) throw new Error(`Unexpected command: ${arg}`);
       args.command = arg;
       commandSeen = true;
+      continue;
+    }
+    if (args.command === "explain" && arg && !arg.startsWith("-")) {
+      if (args.explainTarget) throw new Error(`Unexpected target: ${arg}`);
+      args.explainTarget = arg;
+      if (isPackageManager(arg)) {
+        args.manager = arg;
+        args.global = true;
+      }
       continue;
     }
     if (arg && isPackageManager(arg)) {
@@ -63,6 +83,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case "--dry-run":
         args.dryRun = true;
         break;
+      case "--days":
+        args.days = requirePositiveInteger(argv, ++index, arg);
+        break;
       case "--force":
         args.force = true;
         break;
@@ -78,6 +101,12 @@ export function parseCliArgs(argv: string[]): CliArgs {
         break;
       case "--json":
         args.json = true;
+        break;
+      case "--limit":
+        args.limit = requirePositiveInteger(argv, ++index, arg);
+        break;
+      case "--no-update-check":
+        args.noUpdateCheck = true;
         break;
       case "--project":
         args.project = true;
@@ -99,10 +128,19 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
 
   if (
-    args.command === "list" &&
+    args.command !== "clean" &&
     (args.dryRun || args.yes || args.all || args.safe || args.force)
   ) {
-    throw new Error("list does not accept cleanup flags");
+    throw new Error(`${args.command} does not accept cleanup flags`);
+  }
+  if (args.command === "explain" && !args.explainTarget) {
+    throw new Error("explain requires a cache ID, tool, name, or path");
+  }
+  if (args.command !== "old" && args.days !== undefined) {
+    throw new Error("--days requires the old command");
+  }
+  if (args.command !== "largest" && args.limit !== undefined) {
+    throw new Error("--limit requires the largest command");
   }
   if (args.yes && !args.safe && !args.force) {
     throw new Error("--yes requires --safe, --all, or --force");
@@ -123,6 +161,19 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
 
   return args;
+}
+
+function requirePositiveInteger(
+  argv: string[],
+  index: number,
+  option: string,
+): number {
+  const raw = requireValue(argv, index, option);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${option} requires a positive integer`);
+  }
+  return value;
 }
 
 function requireValue(argv: string[], index: number, option: string): string {

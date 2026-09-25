@@ -234,7 +234,9 @@ async function enrichTarget(
   return {
     ...target,
     absolutePath,
+    createdAt: details.birthtimeMs || details.ctimeMs,
     size,
+    modifiedAt: details.mtimeMs,
     trackedByGit,
     symlink: details.isSymbolicLink(),
     exists: true,

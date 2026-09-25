@@ -26,10 +26,33 @@ export function formatTarget(target: CacheTarget): string {
     target.name,
     `  ${target.path}`,
     `  ${formatBytes(target.size)} · ${flags}`,
+    `  Last changed: ${formatAge(target.modifiedAt)}`,
     `  Created by: ${target.tool}`,
     `  Purpose: ${target.description}`,
     `  Effect: ${target.consequences.join(" ")}`,
   ].join("\n");
+}
+
+export function formatLargest(targets: CacheTarget[], limit: number): string {
+  const largest = [...targets]
+    .sort((left, right) => right.size - left.size)
+    .slice(0, limit);
+  if (largest.length === 0) return "No supported development caches found.";
+  const lines = largest.flatMap((target, index) => [
+    `${index + 1}. ${target.name}  ${formatBytes(target.size)}`,
+    `   ${target.path} · ${target.scope} · ${target.safety}`,
+  ]);
+  const total = largest.reduce((sum, target) => sum + target.size, 0);
+  return `Largest caches\n\n${lines.join("\n")}\n\nShown: ${formatBytes(total)}`;
+}
+
+export function formatOld(targets: CacheTarget[], days: number): string {
+  if (targets.length === 0) {
+    return `No caches unchanged for ${days} days.`;
+  }
+  return `Caches unchanged for at least ${days} days\n\n${targets
+    .map(formatTarget)
+    .join("\n\n")}\n\nAge uses cache path timestamps.`;
 }
 
 export function formatList(targets: CacheTarget[]): string {
@@ -48,6 +71,17 @@ export function formatWarnings(warnings: DetectionWarning[]): string {
   return warnings
     .map((warning) => `Warning (${warning.tool}): ${warning.message}`)
     .join("\n");
+}
+
+export function formatAge(timestamp: number, now = Date.now()): string {
+  const elapsed = Math.max(0, now - timestamp);
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }
 
 export function formatPlan(plan: CleanupPlan): string {

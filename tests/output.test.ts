@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatBytes,
+  formatAge,
+  formatLargest,
   formatList,
+  formatOld,
   formatPlan,
   formatResult,
   formatTarget,
@@ -29,6 +32,10 @@ describe("output", () => {
     expect(formatTarget({ ...target, trackedByGit: true })).toContain(
       "safe, tracked",
     );
+    expect(formatAge(Date.now() - 2 * 86_400_000)).toBe("2d ago");
+    expect(formatLargest([target], 1)).toContain("1. Vite cache");
+    expect(formatOld([target], 1)).toContain("Age uses cache path timestamps");
+    expect(formatOld([], 1)).toContain("No caches unchanged");
   });
 
   it("formats cleanup plans and results", () => {
@@ -79,7 +86,9 @@ function fixtureTarget(): CacheTarget {
     tool: "vite",
     description: "Vite cache",
     consequences: [],
+    createdAt: Date.now() - 86_400_000,
     size: 2048,
+    modifiedAt: Date.now() - 60_000,
     trackedByGit: false,
     symlink: false,
     exists: true,

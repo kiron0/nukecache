@@ -31,7 +31,9 @@ export interface CacheCandidate {
 
 export interface CacheTarget extends CacheCandidate {
   absolutePath: string;
+  createdAt: number;
   size: number;
+  modifiedAt: number;
   trackedByGit: boolean;
   symlink: boolean;
   exists: true;

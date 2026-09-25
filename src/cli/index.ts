@@ -4,6 +4,7 @@ import {
   isCancel,
   multiselect,
   outro,
+  select,
   spinner,
 } from "@clack/prompts";
 import { readFile } from "node:fs/promises";
@@ -13,23 +14,36 @@ import { createCleanupPlan } from "../cleanup/planner";
 import { detectCaches } from "../detect";
 import {
   formatBytes,
+  formatLargest,
   formatList,
+  formatOld,
   formatPlan,
   formatResult,
+  formatTarget,
   formatWarnings,
 } from "../output";
 import type { CacheTarget, CleanupPlan } from "../types";
+import {
+  checkForUpdate,
+  ignoreUpdateVersion,
+  installUpdate,
+  type UpdateInfo,
+} from "../update";
 import { parseCliArgs, type CliArgs } from "./args";
 
 async function main(): Promise<void> {
   try {
     const args = parseCliArgs(process.argv.slice(2));
+    const version = await getVersion();
+    if (!args.noUpdateCheck && process.env.NUKECACHE_NO_UPDATE_CHECK !== "1") {
+      await handleUpdateCheck(version, args);
+    }
     if (args.help) {
       printHelp();
       return;
     }
     if (args.version) {
-      console.log(`nukecache ${await getVersion()}`);
+      console.log(`nukecache ${version}`);
       return;
     }
 
@@ -65,6 +79,43 @@ async function main(): Promise<void> {
           ),
         );
       else console.log(formatList(detection.targets));
+      return;
+    }
+
+    if (args.command === "largest") {
+      const limit = args.limit ?? 10;
+      if (args.json) {
+        console.log(
+          JSON.stringify(
+            detection.targets.slice(0, limit).map(toTargetJson),
+            null,
+            2,
+          ),
+        );
+      } else console.log(formatLargest(detection.targets, limit));
+      return;
+    }
+
+    if (args.command === "old") {
+      const days = args.days ?? 30;
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const oldTargets = detection.targets.filter(
+        (target) => target.modifiedAt <= cutoff,
+      );
+      if (args.json)
+        console.log(JSON.stringify(oldTargets.map(toTargetJson), null, 2));
+      else console.log(formatOld(oldTargets, days));
+      return;
+    }
+
+    if (args.command === "explain") {
+      const matches = findTargets(detection.targets, args.explainTarget ?? "");
+      if (matches.length === 0) {
+        throw new Error(`Cache target not found: ${args.explainTarget}`);
+      }
+      if (args.json)
+        console.log(JSON.stringify(matches.map(toTargetJson), null, 2));
+      else console.log(matches.map(formatTarget).join("\n\n"));
       return;
     }
 
@@ -213,6 +264,8 @@ function toListJson(
       consequences: target.consequences,
       trackedByGit: target.trackedByGit,
       symlink: target.symlink,
+      createdAt: new Date(target.createdAt).toISOString(),
+      modifiedAt: new Date(target.modifiedAt).toISOString(),
       ...(target.cleanup
         ? {
             cleanup: {
@@ -225,6 +278,79 @@ function toListJson(
     totalBytes: targets.reduce((sum, target) => sum + target.size, 0),
     warnings,
   };
+}
+
+function toTargetJson(target: CacheTarget) {
+  return {
+    id: target.id,
+    name: target.name,
+    path: target.path,
+    size: target.size,
+    scope: target.scope,
+    safety: target.safety,
+    tool: target.tool,
+    description: target.description,
+    consequences: target.consequences,
+    trackedByGit: target.trackedByGit,
+    symlink: target.symlink,
+    createdAt: new Date(target.createdAt).toISOString(),
+    modifiedAt: new Date(target.modifiedAt).toISOString(),
+  };
+}
+
+function findTargets(targets: CacheTarget[], query: string): CacheTarget[] {
+  const normalized = query.toLowerCase();
+  return targets.filter(
+    (target) =>
+      target.id.toLowerCase() === normalized ||
+      target.tool.toLowerCase() === normalized ||
+      target.name.toLowerCase() === normalized ||
+      target.path.toLowerCase() === normalized ||
+      target.absolutePath.toLowerCase() === normalized,
+  );
+}
+
+async function handleUpdateCheck(
+  currentVersion: string,
+  args: CliArgs,
+): Promise<void> {
+  const update = await checkForUpdate(currentVersion);
+  if (!update) return;
+
+  if (args.json || args.yes || !process.stdin.isTTY || !process.stdout.isTTY) {
+    console.error(updateNotice(update));
+    return;
+  }
+
+  console.log(
+    `Update available · ${update.currentVersion} → ${update.latestVersion}\nRelease notes: ${update.releaseUrl}`,
+  );
+  const action = await select({
+    message: "Update nukecache?",
+    options: [
+      { value: "update", label: "Update now", hint: "npm install --global" },
+      { value: "skip", label: "Skip" },
+      {
+        value: "ignore",
+        label: "Skip this version",
+        hint: `hide ${update.latestVersion}`,
+      },
+    ],
+    initialValue: "update",
+  });
+  if (isCancel(action) || action === "skip") return;
+  if (action === "ignore") {
+    await ignoreUpdateVersion(update.latestVersion);
+    return;
+  }
+
+  console.log(`Updating to ${update.latestVersion}...`);
+  await installUpdate(update.latestVersion);
+  outro(`Updated to ${update.latestVersion}. Restart nukecache to use it.`);
+}
+
+function updateNotice(update: UpdateInfo): string {
+  return `Update available: ${update.currentVersion} → ${update.latestVersion}. Run: npm install --global nukecache@latest`;
 }
 
 function toPlanJson(plan: CleanupPlan, dryRun: boolean) {
@@ -273,6 +399,9 @@ function printHelp(): void {
 Usage:
   nukecache                         Interactive project cleanup
   nukecache list [--json]           Inspect caches without deleting
+  nukecache largest [--limit 10]    Show largest detected caches
+  nukecache old [--days 30]         Show caches unchanged for N days
+  nukecache explain <id|path|tool>  Explain matching caches
   nukecache clean                   Interactive cleanup
   nukecache clean --safe --yes      Remove all safe, untracked project caches
   nukecache npm                     Clean npm's global cache interactively
@@ -284,10 +413,13 @@ Options:
   --all                             Select all safe project caches
   --cwd <path>                      Scan another project directory
   --dry-run                         Preview; never delete
+  --days <number>                   Age threshold for old command
   --force                           Include rebuildable/global caches
   --global                          Package-manager cache scope
   --ignore <id|tool|path>           Skip target (repeatable)
   --json                            Emit machine-readable JSON
+  --limit <number>                  Result limit for largest command
+  --no-update-check                 Disable update check for this run
   --project                         Include project scope with --global
   --safe                            Restrict cleanup to safe targets
   --yes, -y                         Skip confirmation; global requires --force

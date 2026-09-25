@@ -25,9 +25,15 @@ interface CleanupOutput {
   removed: Array<{ path: string }>;
 }
 
+interface CacheOutput {
+  id: string;
+  modifiedAt: string;
+}
+
 type ExecFailure = Error & { code: number; stderr: string };
 
 const execFileAsync = promisify(execFile);
+process.env.NUKECACHE_NO_UPDATE_CHECK = "1";
 const directory = await mkdtemp(join(tmpdir(), "nukecache-cli-e2e-"));
 const cli = join(process.cwd(), "dist", "cli.js");
 const packageVersion = await readPackageVersion();
@@ -48,6 +54,38 @@ try {
   const listResult = parseJson<ListOutput>(listed.stdout);
   assert.equal(listResult.caches.length, 1);
   assert.equal(listResult.caches[0]?.path, ".next/cache");
+
+  const largest = await execFileAsync(process.execPath, [
+    cli,
+    "largest",
+    "--limit",
+    "1",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  assert.equal(parseJson<CacheOutput[]>(largest.stdout)[0]?.id, "next");
+
+  const explained = await execFileAsync(process.execPath, [
+    cli,
+    "explain",
+    "next",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  assert.equal(parseJson<CacheOutput[]>(explained.stdout)[0]?.id, "next");
+
+  const old = await execFileAsync(process.execPath, [
+    cli,
+    "old",
+    "--days",
+    "1",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  assert.deepEqual(parseJson<CacheOutput[]>(old.stdout), []);
 
   const preview = await execFileAsync(process.execPath, [
     cli,

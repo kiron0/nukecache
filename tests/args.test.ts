@@ -13,6 +13,7 @@ describe("parseCliArgs", () => {
       help: false,
       ignore: [],
       json: false,
+      noUpdateCheck: false,
       project: false,
       safe: false,
       version: false,
@@ -45,6 +46,25 @@ describe("parseCliArgs", () => {
     });
   });
 
+  it("parses inspection commands", () => {
+    expect(parseCliArgs(["largest", "--limit", "5"])).toMatchObject({
+      command: "largest",
+      limit: 5,
+    });
+    expect(parseCliArgs(["old", "--days", "14"])).toMatchObject({
+      command: "old",
+      days: 14,
+    });
+    expect(parseCliArgs(["explain", "vite"])).toMatchObject({
+      command: "explain",
+      explainTarget: "vite",
+    });
+    expect(parseCliArgs(["explain", "bun"])).toMatchObject({
+      manager: "bun",
+      global: true,
+    });
+  });
+
   it("parses safe non-interactive cleanup", () => {
     expect(parseCliArgs(["clean", "--safe", "--yes"])).toMatchObject({
       command: "clean",
@@ -68,5 +88,12 @@ describe("parseCliArgs", () => {
     );
     expect(() => parseCliArgs(["--wat"])).toThrow("Unknown option");
     expect(() => parseCliArgs(["--cwd"])).toThrow("Missing value");
+    expect(() => parseCliArgs(["explain"])).toThrow("requires a cache");
+    expect(() => parseCliArgs(["old", "--days", "0"])).toThrow(
+      "positive integer",
+    );
+    expect(() => parseCliArgs(["list", "--limit", "5"])).toThrow(
+      "requires the largest",
+    );
   });
 });
