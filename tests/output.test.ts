@@ -90,13 +90,17 @@ describe("output", () => {
   });
 
   it("exports unstyled thanks message starting with newline", () => {
-    expect(THANKS_MESSAGE).toBe("\nThanks for using nukecache..!");
+    expect(THANKS_MESSAGE).toBe(
+      "\nThanks for using nukecache..!\n\nFor more visit - https://nukecache.js.org",
+    );
   });
 
   it("prints unstyled thanks message to console", () => {
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     printThanks();
-    expect(spy).toHaveBeenCalledWith("\nThanks for using nukecache..!");
+    expect(spy).toHaveBeenCalledWith(
+      "\nThanks for using nukecache..!\n\nFor more visit - https://nukecache.js.org",
+    );
     spy.mockRestore();
   });
 });
