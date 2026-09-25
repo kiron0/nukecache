@@ -1,11 +1,16 @@
+import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
 import { detectCaches } from "../src/detect";
+import { findTrackedByGit, isTrackedByGit } from "../src/project/git";
 import { findProjectRoot } from "../src/project/root";
+
+const execFileAsync = promisify(execFile);
 
 async function project(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nukecache-detect-"));
@@ -105,5 +110,34 @@ describe("project detection", () => {
         "swc",
       ]),
     );
+  });
+
+  it("checks all Git-tracked cache paths in one batch", async () => {
+    const root = await project();
+    const trackedDirectory = join(root, ".tracked-cache");
+    const trackedFile = join(root, "tracked.tsbuildinfo");
+    const untrackedFile = join(root, "untracked.tsbuildinfo");
+    await mkdir(trackedDirectory);
+    await writeFile(join(trackedDirectory, "entry"), "tracked");
+    await writeFile(trackedFile, "tracked");
+    await writeFile(untrackedFile, "untracked");
+    await execFileAsync("git", ["init", "--quiet", root]);
+    await execFileAsync("git", [
+      "-C",
+      root,
+      "add",
+      ".tracked-cache/entry",
+      "tracked.tsbuildinfo",
+    ]);
+
+    const tracked = await findTrackedByGit(root, [
+      trackedDirectory,
+      trackedFile,
+      untrackedFile,
+    ]);
+
+    expect(tracked).toEqual(new Set([trackedDirectory, trackedFile]));
+    await expect(isTrackedByGit(root, trackedFile)).resolves.toBe(true);
+    await expect(isTrackedByGit(root, untrackedFile)).resolves.toBe(false);
   });
 });

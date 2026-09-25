@@ -101,4 +101,40 @@ describe("package-manager detection", () => {
     expect(result.warnings[0]).toMatchObject({ tool: "yarn" });
     expect(result.warnings[0]?.message).toContain("command not found");
   });
+
+  it("runs Bun commands from a package directory outside a bare cwd", async () => {
+    const context = await project();
+    delete context.packageJson;
+    const cache = await mkdtemp(join(tmpdir(), "nukecache-bun-cache-"));
+    let commandCwd = "";
+    const runner: CommandRunner = (_command, _args, options) => {
+      commandCwd = options.cwd;
+      if (options.cwd === context.root) {
+        return Promise.reject(new Error("package context unavailable"));
+      }
+      return Promise.resolve(cache);
+    };
+
+    const result = await detectPackageManagerCaches(context, ["bun"], runner);
+
+    expect(result.warnings).toEqual([]);
+    expect(result.candidates).toHaveLength(1);
+    expect(commandCwd).not.toBe(context.root);
+    expect(result.candidates[0]?.cleanup?.cwd).toBe(commandCwd);
+  });
+
+  it("keeps global manager caches global when scanning a home-like root", async () => {
+    const context = await project();
+    const cache = join(context.root, ".bun", "install", "cache");
+    await mkdir(cache, { recursive: true });
+    const runner: CommandRunner = () => Promise.resolve(cache);
+
+    const result = await detectPackageManagerCaches(context, ["bun"], runner);
+
+    expect(result.candidates[0]).toMatchObject({
+      path: cache,
+      scope: "global",
+      safety: "global",
+    });
+  });
 });

@@ -1,7 +1,10 @@
-import { lstat, opendir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
+import { mapWithConcurrency } from "../filesystem/concurrency";
 import type { CacheCandidate, CacheSafety, ProjectContext } from "../types";
+
+const DIRECTORY_CONCURRENCY = 32;
 
 export async function pathExists(path: string): Promise<boolean> {
   try {
@@ -64,28 +67,39 @@ export async function findFiles(
   predicate: (name: string) => boolean,
 ): Promise<string[]> {
   const found: string[] = [];
+  let directories = [root];
 
-  async function walk(directory: string): Promise<void> {
-    let handle;
-    try {
-      handle = await opendir(directory);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "EACCES" || code === "EPERM") return;
-      throw error;
-    }
-    for await (const entry of handle) {
-      if (entry.isSymbolicLink()) continue;
-      const absolutePath = join(directory, entry.name);
-      if (entry.isDirectory()) {
-        if (!SKIP_DIRECTORIES.has(entry.name)) await walk(absolutePath);
-      } else if (entry.isFile() && predicate(entry.name)) {
-        found.push(relative(root, absolutePath).split(sep).join("/"));
-      }
-    }
+  while (directories.length > 0) {
+    const discovered = await mapWithConcurrency(
+      directories,
+      DIRECTORY_CONCURRENCY,
+      async (directory) => {
+        try {
+          const entries = await readdir(directory, { withFileTypes: true });
+          const children: string[] = [];
+          for (const entry of entries) {
+            if (entry.isSymbolicLink()) continue;
+            const absolutePath = join(directory, entry.name);
+            if (entry.isDirectory()) {
+              if (!SKIP_DIRECTORIES.has(entry.name))
+                children.push(absolutePath);
+            } else if (entry.isFile() && predicate(entry.name)) {
+              found.push(relative(root, absolutePath).split(sep).join("/"));
+            }
+          }
+          return children;
+        } catch (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === "EACCES" || code === "EPERM" || code === "ENOENT") {
+            return [];
+          }
+          throw error;
+        }
+      },
+    );
+    directories = discovered.flat();
   }
 
-  await walk(root);
   return found.sort();
 }
 

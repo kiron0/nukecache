@@ -1,5 +1,14 @@
 import { homedir } from "node:os";
-import { isAbsolute, join, parse, relative, resolve, sep } from "node:path";
+import {
+  dirname,
+  isAbsolute,
+  join,
+  parse,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { pathExists } from "./helpers";
 import { runCommand, type CommandRunner } from "../process/command";
@@ -24,6 +33,7 @@ interface CacheDefinition {
   description: string;
   consequences: string[];
   cleanup: NativeCleanupCommand;
+  allowProjectScope?: boolean;
 }
 
 export async function detectPackageManagerCaches(
@@ -140,15 +150,20 @@ async function detectManagerCache(
           args: ["cache", "clean"],
           cwd: context.root,
         },
+        allowProjectScope: true,
       };
     }
     case "bun": {
-      const path = await commandPath(
-        runner,
-        "bun",
-        ["pm", "cache"],
-        context.root,
-      );
+      let cwd = context.root;
+      let path: string;
+      try {
+        path = await commandPath(runner, "bun", ["pm", "cache"], cwd);
+      } catch (initialError) {
+        const fallbackCwd = await bunCommandFallbackCwd(context.root);
+        if (fallbackCwd === context.root) throw initialError;
+        cwd = fallbackCwd;
+        path = await commandPath(runner, "bun", ["pm", "cache"], cwd);
+      }
       if (!(await pathExists(path))) return undefined;
       return {
         id: "bun-cache",
@@ -161,10 +176,20 @@ async function detectManagerCache(
           kind: "command",
           command: "bun",
           args: ["pm", "cache", "rm"],
-          cwd: context.root,
+          cwd,
         },
       };
     }
+  }
+}
+
+async function bunCommandFallbackCwd(defaultCwd: string): Promise<string> {
+  let current = dirname(fileURLToPath(import.meta.url));
+  const filesystemRoot = parse(current).root;
+  while (true) {
+    if (await pathExists(join(current, "package.json"))) return current;
+    if (current === filesystemRoot) return defaultCwd;
+    current = dirname(current);
   }
 }
 
@@ -175,6 +200,7 @@ function toCandidate(
   const absolutePath = safeAbsoluteCachePath(definition.path);
   const projectPath = relative(context.root, absolutePath);
   const inProject =
+    definition.allowProjectScope === true &&
     projectPath !== "" &&
     projectPath !== ".." &&
     !projectPath.startsWith(`..${sep}`) &&

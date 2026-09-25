@@ -1,4 +1,4 @@
-import { access, readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, parse, resolve } from "node:path";
 
 import type { ProjectContext } from "../types";
@@ -13,10 +13,10 @@ const ROOT_MARKERS = [
   "bun.lockb",
 ];
 
-async function exists(path: string): Promise<boolean> {
+async function containsRootMarker(path: string): Promise<boolean> {
   try {
-    await access(path);
-    return true;
+    const entries = new Set(await readdir(path));
+    return ROOT_MARKERS.some((marker) => entries.has(marker));
   } catch {
     return false;
   }
@@ -27,15 +27,7 @@ export async function findProjectRoot(cwd = process.cwd()): Promise<string> {
   const filesystemRoot = parse(current).root;
 
   while (true) {
-    if (
-      (
-        await Promise.all(
-          ROOT_MARKERS.map((marker) => exists(resolve(current, marker))),
-        )
-      ).some(Boolean)
-    ) {
-      return current;
-    }
+    if (await containsRootMarker(current)) return current;
 
     if (current === filesystemRoot) return resolve(cwd);
     current = dirname(current);

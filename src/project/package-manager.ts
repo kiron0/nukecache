@@ -1,5 +1,4 @@
-import { access } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readdir } from "node:fs/promises";
 
 import type { PackageManager, ProjectContext } from "../types";
 
@@ -17,16 +16,14 @@ export async function detectPackageManagers(
   const declared = parsePackageManager(context.packageJson?.packageManager);
   if (declared) managers.add(declared);
 
-  const detected = await Promise.all(
-    MARKERS.map(async ([manager, markers]) => {
-      const found = await Promise.all(
-        markers.map((marker) => exists(resolve(context.root, marker))),
-      );
-      return found.some(Boolean) ? manager : undefined;
-    }),
-  );
-  for (const manager of detected) {
-    if (manager) managers.add(manager);
+  let entries: Set<string>;
+  try {
+    entries = new Set(await readdir(context.root));
+  } catch {
+    entries = new Set();
+  }
+  for (const [manager, markers] of MARKERS) {
+    if (markers.some((marker) => entries.has(marker))) managers.add(manager);
   }
 
   return [...managers];
@@ -44,13 +41,4 @@ export function isPackageManager(value: string): value is PackageManager {
   return (
     value === "npm" || value === "pnpm" || value === "yarn" || value === "bun"
   );
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
 }

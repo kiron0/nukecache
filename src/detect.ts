@@ -6,7 +6,7 @@ import { candidate, pathExists, slug } from "./detectors/helpers";
 import { detectPackageManagerCaches } from "./detectors/package-managers";
 import { calculateSize } from "./filesystem/size";
 import { loadConfig } from "./project/config";
-import { isTrackedByGit } from "./project/git";
+import { findTrackedByGit } from "./project/git";
 import { detectPackageManagers } from "./project/package-manager";
 import { createProjectContext } from "./project/root";
 import type {
@@ -74,8 +74,18 @@ export async function detectCaches(
     context.root,
   );
 
+  const projectPaths = filtered
+    .filter((target) => target.scope === "project")
+    .map((target) => absoluteCandidatePath(context.root, target));
+  const trackedPaths = await findTrackedByGit(context.root, projectPaths);
   const enriched = await Promise.all(
-    filtered.map((target) => enrichTarget(context, target)),
+    filtered.map((target) =>
+      enrichTarget(
+        context,
+        target,
+        trackedPaths.has(absoluteCandidatePath(context.root, target)),
+      ),
+    ),
   );
   const targets = enriched.filter(
     (target): target is CacheTarget => target !== undefined,
@@ -206,17 +216,14 @@ function removeOverlaps(
 async function enrichTarget(
   context: ProjectContext,
   target: CacheCandidate,
+  trackedByGit: boolean,
 ): Promise<CacheTarget | undefined> {
   const absolutePath = absoluteCandidatePath(context.root, target);
   let size: number;
-  let trackedByGit: boolean;
   let details: Awaited<ReturnType<typeof lstat>>;
   try {
-    [size, trackedByGit, details] = await Promise.all([
+    [size, details] = await Promise.all([
       calculateSize(absolutePath),
-      target.scope === "project"
-        ? isTrackedByGit(context.root, absolutePath)
-        : Promise.resolve(false),
       lstat(absolutePath),
     ]);
   } catch (error) {
