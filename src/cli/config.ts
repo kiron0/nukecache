@@ -518,6 +518,7 @@ function configArgs(
     safe: false,
     version: false,
     yes: false,
+    checkUpdate: false,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   intro,
   isCancel,
   multiselect,
+  note,
   outro,
   select,
   spinner,
@@ -27,6 +28,7 @@ import {
 import type { CacheTarget, CleanupPlan } from "../types";
 import {
   checkForUpdate,
+  checkUpdateManually,
   ignoreUpdateVersion,
   installUpdate,
   type UpdateInfo,
@@ -53,10 +55,16 @@ async function main(): Promise<void> {
     const version = await getVersion();
     if (args.help) {
       printHelp();
+      printThanks();
       return;
     }
     if (args.version) {
       console.log(`nukecache ${version}`);
+      printThanks();
+      return;
+    }
+    if (args.checkUpdate) {
+      await handleManualUpdateCheck(version, args);
       return;
     }
 
@@ -87,6 +95,7 @@ async function main(): Promise<void> {
       console.log(
         args.json ? JSON.stringify(result, null, 2) : formatConfig(result),
       );
+      if (!args.json) printThanks();
       return;
     }
 
@@ -145,7 +154,10 @@ async function main(): Promise<void> {
             2,
           ),
         );
-      else console.log(formatList(detection.targets));
+      else {
+        console.log(formatList(detection.targets));
+        printThanks();
+      }
       return;
     }
 
@@ -159,7 +171,10 @@ async function main(): Promise<void> {
             2,
           ),
         );
-      } else console.log(formatLargest(detection.targets, limit));
+      } else {
+        console.log(formatLargest(detection.targets, limit));
+        printThanks();
+      }
       return;
     }
 
@@ -171,7 +186,10 @@ async function main(): Promise<void> {
       );
       if (args.json)
         console.log(JSON.stringify(oldTargets.map(toTargetJson), null, 2));
-      else console.log(formatOld(oldTargets, days));
+      else {
+        console.log(formatOld(oldTargets, days));
+        printThanks();
+      }
       return;
     }
 
@@ -185,7 +203,10 @@ async function main(): Promise<void> {
       }
       if (args.json)
         console.log(JSON.stringify(matches.map(toTargetJson), null, 2));
-      else console.log(matches.map(formatTarget).join("\n\n"));
+      else {
+        console.log(matches.map(formatTarget).join("\n\n"));
+        printThanks();
+      }
       return;
     }
 
@@ -199,7 +220,10 @@ async function main(): Promise<void> {
             bytesFreed: 0,
           }),
         );
-      else console.log("No supported development caches found.");
+      else {
+        console.log("No supported development caches found.");
+        printThanks();
+      }
       return;
     }
 
@@ -215,14 +239,20 @@ async function main(): Promise<void> {
     if (args.dryRun) {
       if (args.json)
         console.log(JSON.stringify(toPlanJson(plan, true), null, 2));
-      else console.log(`${formatPlan(plan)}\n\nNo files were deleted.`);
+      else {
+        console.log(`${formatPlan(plan)}\n\nNo files were deleted.`);
+        printThanks();
+      }
       return;
     }
 
     if (!plan.items.some((item) => item.action === "remove")) {
       if (args.json)
         console.log(JSON.stringify(toPlanJson(plan, false), null, 2));
-      else console.log(formatPlan(plan));
+      else {
+        console.log(formatPlan(plan));
+        printThanks();
+      }
       return;
     }
 
@@ -261,7 +291,10 @@ async function main(): Promise<void> {
     const result = await executeCleanup(plan);
     cleanupProgress?.stop("Cleanup finished");
     if (args.json) console.log(JSON.stringify(result, null, 2));
-    else console.log(formatResult(result));
+    else {
+      console.log(formatResult(result));
+      if (result.failed.length === 0) printThanks();
+    }
     if (result.failed.length > 0) process.exitCode = 1;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
@@ -428,6 +461,75 @@ async function handleUpdateCheck(
   outro(`Updated to ${update.latestVersion}. Restart nukecache to use it.`);
 }
 
+async function handleManualUpdateCheck(
+  version: string,
+  args: CliArgs,
+): Promise<void> {
+  const isInteractive =
+    !args.json && Boolean(process.stdout.isTTY && process.stdin.isTTY);
+
+  if (args.json) {
+    const result = await checkUpdateManually(version, { force: args.force });
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (isInteractive) {
+    intro("nukecache update check");
+    const checkSpinner = spinner();
+    checkSpinner.start("Checking npm registry for updates");
+    const result = await checkUpdateManually(version, { force: args.force });
+    if (result.rateLimited) {
+      checkSpinner.stop(
+        `Checked recently (rate limited, 60s cooldown). Latest: v${result.latestVersion}`,
+      );
+    } else if (result.updateAvailable) {
+      checkSpinner.stop(
+        `Update available: ${result.currentVersion} → ${result.latestVersion}`,
+      );
+    } else {
+      checkSpinner.stop(`Up to date (v${result.currentVersion})`);
+    }
+
+    if (result.updateAvailable) {
+      note(`Run: npm install --global nukecache@latest`, "Upgrade Available");
+      const answer = await select({
+        message: `Install v${result.latestVersion} now?`,
+        options: [
+          { value: "install", label: "Install update now" },
+          { value: "skip", label: "Skip for now" },
+        ],
+        initialValue: "install",
+      });
+      if (!isCancel(answer) && answer === "install") {
+        console.log(`Updating to ${result.latestVersion}...`);
+        await installUpdate(result.latestVersion);
+        outro(
+          `Updated to ${result.latestVersion}. Restart nukecache to use it.`,
+        );
+      }
+    }
+    printThanks();
+    return;
+  }
+
+  const result = await checkUpdateManually(version, { force: args.force });
+  if (result.updateAvailable) {
+    console.log(
+      `Update available: ${result.currentVersion} → ${result.latestVersion}`,
+    );
+    console.log("Run: npm install --global nukecache@latest");
+  } else {
+    console.log(`nukecache is up to date (${result.currentVersion})`);
+  }
+  if (result.rateLimited) {
+    console.log(
+      "(Checked recently with 60s rate limit; use --force to bypass)",
+    );
+  }
+  printThanks();
+}
+
 function updateNotice(update: UpdateInfo): string {
   return `Update available: ${update.currentVersion} → ${update.latestVersion}. Run: npm install --global nukecache@latest`;
 }
@@ -477,6 +579,7 @@ function printHelp(): void {
 
 Usage:
   nukecache                         Interactive project cleanup
+  nukecache check-update            Check for package updates
   nukecache list [--json]           Inspect caches without deleting
   nukecache config                  Interactive project configuration
   nukecache config set <key> <val>  Update project configuration
@@ -493,6 +596,7 @@ Usage:
 
 Options:
   --all                             Select all safe project caches
+  --check-update                    Check for package updates (60s rate limit)
   --cwd <path>                      Scan another project directory
   --dry-run                         Preview; never delete
   --days <number>                   Age threshold for old command

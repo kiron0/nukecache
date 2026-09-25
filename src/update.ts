@@ -3,7 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+export const MANUAL_RATE_LIMIT_MS = 60 * 1000;
 const REQUEST_TIMEOUT_MS = 1_200;
 const REGISTRY_URL = "https://registry.npmjs.org/nukecache/latest";
 
@@ -19,10 +20,63 @@ export interface UpdateInfo {
   releaseUrl: string;
 }
 
-interface UpdateCheckOptions {
+export interface UpdateCheckOptions {
   cacheDirectory?: string;
   fetcher?: typeof fetch;
+  force?: boolean;
   now?: number;
+}
+
+export interface ManualUpdateResult {
+  currentVersion: string;
+  latestVersion: string;
+  rateLimited: boolean;
+  releaseUrl: string;
+  updateAvailable: boolean;
+}
+
+export async function checkUpdateManually(
+  currentVersion: string,
+  options: UpdateCheckOptions = {},
+): Promise<ManualUpdateResult> {
+  const now = options.now ?? Date.now();
+  const cachePath = join(
+    options.cacheDirectory ?? updateCacheDirectory(),
+    "update.json",
+  );
+  const cache = await readCache(cachePath);
+  let latestVersion = cache.latestVersion;
+  const isRateLimited = Boolean(
+    !options.force &&
+    cache.checkedAt &&
+    now - cache.checkedAt < MANUAL_RATE_LIMIT_MS,
+  );
+
+  if (!isRateLimited) {
+    try {
+      latestVersion = await fetchLatestVersion(options.fetcher ?? fetch);
+      await writeCache(cachePath, {
+        ...cache,
+        checkedAt: now,
+        latestVersion,
+      });
+    } catch {
+      // Manual checks handle network errors gracefully without crashing.
+    }
+  }
+
+  const effectiveLatest = latestVersion ?? currentVersion;
+  const updateAvailable = Boolean(
+    latestVersion && compareVersions(latestVersion, currentVersion) > 0,
+  );
+
+  return {
+    currentVersion,
+    latestVersion: effectiveLatest,
+    rateLimited: isRateLimited,
+    releaseUrl: "https://github.com/kiron0/nukecache/releases/latest",
+    updateAvailable,
+  };
 }
 
 export async function checkForUpdate(
@@ -39,7 +93,11 @@ export async function checkForUpdate(
   const cache = await readCache(cachePath);
   let latestVersion = cache.latestVersion;
 
-  if (!cache.checkedAt || now - cache.checkedAt >= CHECK_INTERVAL_MS) {
+  if (
+    options.force ||
+    !cache.checkedAt ||
+    now - cache.checkedAt >= CHECK_INTERVAL_MS
+  ) {
     try {
       latestVersion = await fetchLatestVersion(options.fetcher ?? fetch);
       await writeCache(cachePath, {

@@ -6,6 +6,7 @@ describe("parseCliArgs", () => {
   it("uses interactive clean defaults", () => {
     expect(parseCliArgs([])).toEqual({
       all: false,
+      checkUpdate: false,
       command: "clean",
       dryRun: false,
       force: false,
@@ -18,6 +19,22 @@ describe("parseCliArgs", () => {
       safe: false,
       version: false,
       yes: false,
+    });
+  });
+
+  it("parses check-update argument and command", () => {
+    expect(parseCliArgs(["--check-update"])).toMatchObject({
+      checkUpdate: true,
+      command: "check-update",
+    });
+    expect(parseCliArgs(["check-update"])).toMatchObject({
+      checkUpdate: true,
+      command: "check-update",
+    });
+    expect(parseCliArgs(["check-update", "--json"])).toMatchObject({
+      checkUpdate: true,
+      command: "check-update",
+      json: true,
     });
   });
 

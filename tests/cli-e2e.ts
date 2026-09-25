@@ -120,6 +120,18 @@ try {
   const version = await execFileAsync(process.execPath, [cli, "--version"]);
   assert.equal(version.stdout.trim(), `nukecache ${packageVersion}`);
 
+  const checkUpdateJson = await execFileAsync(process.execPath, [
+    cli,
+    "--check-update",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  const checkUpdateResult = parseJson<{ currentVersion: string }>(
+    checkUpdateJson.stdout,
+  );
+  assert.equal(checkUpdateResult.currentVersion, packageVersion);
+
   const configured = await execFileAsync(process.execPath, [
     cli,
     "config",

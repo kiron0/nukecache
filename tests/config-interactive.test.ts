@@ -22,6 +22,7 @@ const prompts = vi.hoisted(() => {
     note: vi.fn(),
     outro: vi.fn(),
     select: vi.fn(() => Promise.resolve(selectValues.shift() ?? cancelSymbol)),
+    spinner: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
     text: vi.fn((options: { validate?: (value?: string) => unknown }) => {
       const value = textValues.shift() ?? "";
       options.validate?.(value);

@@ -6,9 +6,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   checkForUpdate,
+  checkUpdateManually,
   compareVersions,
   ignoreUpdateVersion,
   installUpdate,
+  MANUAL_RATE_LIMIT_MS,
 } from "../src/update";
 
 const temporaryDirectories: string[] = [];
@@ -90,6 +92,64 @@ describe("update checks", () => {
       checkForUpdate("0.3.0", { cacheDirectory, fetcher, now: 5_000 }),
     ).resolves.toMatchObject({ latestVersion: "0.4.0" });
     expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it("checks updates manually with rate limit and force bypass", async () => {
+    const cacheDirectory = await temporaryDirectory();
+    const fetcher = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ version: "0.5.0" }), { status: 200 }),
+      ),
+    ) as typeof fetch;
+
+    // First manual check: fetches from registry
+    const first = await checkUpdateManually("0.4.0", {
+      cacheDirectory,
+      fetcher,
+      now: 10_000,
+    });
+    expect(first).toEqual({
+      currentVersion: "0.4.0",
+      latestVersion: "0.5.0",
+      updateAvailable: true,
+      rateLimited: false,
+      releaseUrl: "https://github.com/kiron0/nukecache/releases/latest",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Second manual check within rate limit window (e.g. +30s): rate limited, no fetch
+    const second = await checkUpdateManually("0.4.0", {
+      cacheDirectory,
+      fetcher,
+      now: 10_000 + 30_000,
+    });
+    expect(second).toEqual({
+      currentVersion: "0.4.0",
+      latestVersion: "0.5.0",
+      updateAvailable: true,
+      rateLimited: true,
+      releaseUrl: "https://github.com/kiron0/nukecache/releases/latest",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+
+    // Third manual check with force: true: bypasses rate limit, fetches
+    const third = await checkUpdateManually("0.4.0", {
+      cacheDirectory,
+      fetcher,
+      force: true,
+      now: 10_000 + 35_000,
+    });
+    expect(third.rateLimited).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // Fourth manual check after rate limit expires (+61s from third): fetches
+    const fourth = await checkUpdateManually("0.4.0", {
+      cacheDirectory,
+      fetcher,
+      now: 45_000 + MANUAL_RATE_LIMIT_MS + 1_000,
+    });
+    expect(fourth.rateLimited).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(3);
   });
 });
 

@@ -2,7 +2,7 @@ import { isPackageManager } from "../project/package-manager";
 import type { PackageManager } from "../types";
 
 export type CliCommand =
-  "clean" | "config" | "explain" | "largest" | "list" | "old";
+  "clean" | "config" | "explain" | "largest" | "list" | "old" | "check-update";
 export type ConfigAction = "set" | "show" | "unset";
 
 const COMMANDS: CliCommand[] = [
@@ -12,9 +12,11 @@ const COMMANDS: CliCommand[] = [
   "largest",
   "list",
   "old",
+  "check-update",
 ];
 const OPTIONS = [
   "--all",
+  "--check-update",
   "--cwd",
   "--days",
   "--dry-run",
@@ -36,6 +38,7 @@ const OPTIONS = [
 
 export interface CliArgs {
   all: boolean;
+  checkUpdate: boolean;
   command: CliCommand;
   configAction?: ConfigAction;
   configKey?: string;
@@ -61,6 +64,7 @@ export interface CliArgs {
 export function parseCliArgs(argv: string[]): CliArgs {
   const args: CliArgs = {
     all: false,
+    checkUpdate: false,
     command: "clean",
     dryRun: false,
     force: false,
@@ -120,6 +124,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case "--all":
         args.all = args.safe = true;
         break;
+      case "--check-update":
+        args.checkUpdate = true;
+        break;
       case "--cwd":
         args.cwd = requireValue(argv, ++index, arg);
         break;
@@ -176,11 +183,23 @@ export function parseCliArgs(argv: string[]): CliArgs {
     }
   }
 
+  if (args.command === "check-update" || args.checkUpdate) {
+    args.checkUpdate = true;
+    args.command = "check-update";
+  }
+
   if (
     args.command !== "clean" &&
+    args.command !== "check-update" &&
     (args.dryRun || args.yes || args.all || args.safe || args.force)
   ) {
     throw new Error(`${args.command} does not accept cleanup flags`);
+  }
+  if (
+    args.command === "check-update" &&
+    (args.dryRun || args.yes || args.all || args.safe)
+  ) {
+    throw new Error("check-update does not accept cleanup flags");
   }
   if (args.command === "explain" && !args.explainTarget) {
     throw new Error("explain requires a cache ID, tool, name, or path");

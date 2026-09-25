@@ -25,6 +25,13 @@ export {
   printThanks,
   THANKS_MESSAGE,
 } from "./output";
+export {
+  checkForUpdate,
+  checkUpdateManually,
+  MANUAL_RATE_LIMIT_MS,
+  type ManualUpdateResult,
+  type UpdateInfo,
+} from "./update";
 export type {
   CacheCandidate,
   CacheDetector,

@@ -133,7 +133,7 @@ export function formatResult(result: CleanupResult): string {
 }
 
 export const THANKS_MESSAGE =
-  "\nThanks for using nukecache..!\n\nFor more visit - https://nukecache.js.org";
+  "\nThanks for using nukecache..!\nFor more visit - nukecache.js.org";
 
 export function printThanks(): void {
   console.log(THANKS_MESSAGE);
