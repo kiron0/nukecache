@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   formatBytes,
@@ -10,6 +10,8 @@ import {
   formatResult,
   formatTarget,
   formatWarnings,
+  printThanks,
+  THANKS_MESSAGE,
 } from "../src/output";
 import type { CacheTarget, CleanupPlan } from "../src/types";
 
@@ -85,6 +87,17 @@ describe("output", () => {
     expect(
       formatResult({ removed: [], skipped: [], failed: [], bytesFreed: 0 }),
     ).toContain("Removed: none");
+  });
+
+  it("exports unstyled thanks message starting with newline", () => {
+    expect(THANKS_MESSAGE).toBe("\nThanks for using nukecache..!");
+  });
+
+  it("prints unstyled thanks message to console", () => {
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    printThanks();
+    expect(spy).toHaveBeenCalledWith("\nThanks for using nukecache..!");
+    spy.mockRestore();
   });
 });
 

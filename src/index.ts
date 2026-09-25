@@ -22,6 +22,8 @@ export {
   formatResult,
   formatTarget,
   formatWarnings,
+  printThanks,
+  THANKS_MESSAGE,
 } from "./output";
 export type {
   CacheCandidate,

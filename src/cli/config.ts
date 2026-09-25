@@ -20,6 +20,7 @@ import {
   saveConfig,
   validateConfig,
 } from "../project/config";
+import { printThanks } from "../output";
 import type { NukecacheConfig } from "../types";
 import type { CliArgs } from "./args";
 
@@ -129,13 +130,14 @@ export async function runInteractiveConfig(root: string): Promise<void> {
           label: "Restore a default",
           hint: "remove configured value",
         },
-        { value: "done", label: "Done" },
+        { value: "done", label: "Done", hint: "save and exit" },
       ],
       initialValue: "update",
     });
     if (isCancel(action)) return cancelConfig(saved);
     if (action === "done") {
       outro(saved ? "Configuration saved." : "Configuration unchanged.");
+      printThanks();
       return;
     }
 
@@ -569,6 +571,7 @@ function configHint(
 
 function cancelConfig(saved: boolean): void {
   cancel(saved ? "Saved changes kept." : "Configuration unchanged.");
+  printThanks();
 }
 
 function requireConfigKey(value: string | undefined): ConfigKey {
@@ -667,6 +670,7 @@ export async function resolveConfigCollision(
 
     if (isCancel(selectedFile)) {
       cancel("Aborted. Multiple configuration files still exist.");
+      printThanks();
       throw new Error("Aborted config resolution.");
     }
 
@@ -677,6 +681,7 @@ export async function resolveConfigCollision(
 
     if (isCancel(confirmed) || !confirmed) {
       cancel("Aborted. File was not removed.");
+      printThanks();
       throw new Error("Aborted config resolution.");
     }
 

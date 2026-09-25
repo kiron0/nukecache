@@ -1,4 +1,5 @@
 import {
+  cancel,
   confirm,
   intro,
   isCancel,
@@ -21,6 +22,7 @@ import {
   formatResult,
   formatTarget,
   formatWarnings,
+  printThanks,
 } from "../output";
 import type { CacheTarget, CleanupPlan } from "../types";
 import {
@@ -40,6 +42,12 @@ import { loadConfig } from "../project/config";
 import { createProjectContext } from "../project/root";
 
 async function main(): Promise<void> {
+  if (process.stdin.isTTY) {
+    process.once("SIGINT", () => {
+      printThanks();
+      process.exit(130);
+    });
+  }
   try {
     const args = parseCliArgs(process.argv.slice(2));
     const version = await getVersion();
@@ -170,7 +178,10 @@ async function main(): Promise<void> {
     if (args.command === "explain") {
       const matches = findTargets(detection.targets, args.explainTarget ?? "");
       if (matches.length === 0) {
-        throw new Error(`Cache target not found: ${args.explainTarget}`);
+        const available = detection.targets.map((t) => t.id).join(", ");
+        throw new Error(
+          `Cache target not found: "${args.explainTarget ?? ""}"${available ? `\nAvailable targets: ${available}` : ""}`,
+        );
       }
       if (args.json)
         console.log(JSON.stringify(matches.map(toTargetJson), null, 2));
@@ -193,6 +204,7 @@ async function main(): Promise<void> {
     }
 
     const selectedIds = await selectTargets(detection.targets, args);
+    if (selectedIds === undefined) return;
     const plan = createCleanupPlan(detection.context.root, detection.targets, {
       selectedIds,
       safeOnly: !args.force,
@@ -233,7 +245,12 @@ async function main(): Promise<void> {
         initialValue: false,
       });
       if (isCancel(approved) || !approved) {
-        outro("Cancelled. No files deleted.");
+        cancel(
+          approved === false
+            ? "Cleanup skipped. No files deleted."
+            : "Cancelled. No files deleted.",
+        );
+        printThanks();
         return;
       }
     }
@@ -255,7 +272,7 @@ async function main(): Promise<void> {
 async function selectTargets(
   targets: CacheTarget[],
   args: CliArgs,
-): Promise<string[]> {
+): Promise<string[] | undefined> {
   const eligible = targets.filter(
     (target) =>
       !target.trackedByGit &&
@@ -298,8 +315,9 @@ async function selectTargets(
     required: false,
   });
   if (isCancel(selected)) {
-    outro("Cancelled. No files deleted.");
-    return [];
+    cancel("Cancelled. No files deleted.");
+    printThanks();
+    return undefined;
   }
   return selected;
 }
@@ -394,7 +412,12 @@ async function handleUpdateCheck(
     ],
     initialValue: "update",
   });
-  if (isCancel(action) || action === "skip") return;
+  if (isCancel(action)) {
+    cancel("Cancelled.");
+    printThanks();
+    return;
+  }
+  if (action === "skip") return;
   if (action === "ignore") {
     await ignoreUpdateVersion(update.latestVersion);
     return;

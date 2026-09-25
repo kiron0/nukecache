@@ -131,3 +131,9 @@ export function formatResult(result: CleanupResult): string {
   lines.push("", `Freed: ${formatBytes(result.bytesFreed)}`);
   return lines.join("\n");
 }
+
+export const THANKS_MESSAGE = "\nThanks for using nukecache..!";
+
+export function printThanks(): void {
+  console.log(THANKS_MESSAGE);
+}
