@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -89,7 +89,10 @@ describe("config command", () => {
 
   it.each([
     [["config", "set", "showGlobal", "yes"], "true or false"],
-    [["config", "set", "defaultScope", "global"], "must be project"],
+    [
+      ["config", "set", "defaultScope", "invalid"],
+      "must be project, global, or all",
+    ],
     [["config", "set", "ignore", "vite"], "valid JSON"],
     [["config", "set", "unknown", "true"], "Unknown config key"],
   ] as Array<[string[], string]>)(
@@ -101,6 +104,70 @@ describe("config command", () => {
       );
     },
   );
+
+  it("loads and persists to nkc.config.json if present", async () => {
+    const root = await project();
+    const nkcPath = join(root, "nkc.config.json");
+    await writeFile(nkcPath, JSON.stringify({ showGlobal: true }));
+
+    const loaded = await loadConfig(root);
+    expect(loaded.showGlobal).toBe(true);
+
+    const result = await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "dryRun", "true"]),
+    );
+    expect(result.path).toBe(nkcPath);
+    expect(await readFile(nkcPath, "utf8")).toContain('"dryRun": true');
+  });
+
+  it("sets and unsets all new config options", async () => {
+    const root = await project();
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "defaultScope", "all"]),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "dryRun", "true"]),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "safe", "true"]),
+    );
+    await runConfigCommand(root, parseCliArgs(["config", "set", "days", "45"]));
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "limit", "20"]),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "force", "true"]),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "json", "true"]),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "packageManagers", '["pnpm","bun"]']),
+    );
+    await runConfigCommand(
+      root,
+      parseCliArgs(["config", "set", "noUpdateCheck", "true"]),
+    );
+
+    const config = await loadConfig(root);
+    expect(config.defaultScope).toBe("all");
+    expect(config.dryRun).toBe(true);
+    expect(config.safe).toBe(true);
+    expect(config.force).toBe(true);
+    expect(config.json).toBe(true);
+    expect(config.packageManagers).toEqual(["pnpm", "bun"]);
+    expect(config.days).toBe(45);
+    expect(config.limit).toBe(20);
+    expect(config.noUpdateCheck).toBe(true);
+  });
 });
 
 describe("nearby command errors", () => {

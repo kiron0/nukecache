@@ -33,11 +33,16 @@ export async function detectCaches(
 ): Promise<DetectionResult> {
   const context = await createProjectContext(options.cwd);
   const config = options.config ?? (await loadConfig(context.root));
-  const scope = options.scope ?? (config.showGlobal ? "all" : "project");
+  const scope =
+    options.scope ??
+    config.defaultScope ??
+    (config.showGlobal ? "all" : "project");
   const includeProject = scope === "project" || scope === "all";
   const includeGlobal = scope === "global" || scope === "all";
   const packageManagers =
-    options.packageManagers ?? (await detectPackageManagers(context));
+    options.packageManagers ??
+    config.packageManagers ??
+    (await detectPackageManagers(context));
   const detected = includeProject
     ? (
         await Promise.all(

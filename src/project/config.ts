@@ -1,6 +1,7 @@
+import { existsSync } from "node:fs";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
 import type {
   CacheSafety,
@@ -8,7 +9,13 @@ import type {
   NukecacheConfig,
 } from "../types";
 
-export const CONFIG_FILENAME = "nukecache.config.json";
+export const CONFIG_FILENAMES = [
+  "nukecache.config.json",
+  "nkc.config.json",
+  "ncache.config.json",
+] as const;
+
+export const CONFIG_FILENAME = CONFIG_FILENAMES[0];
 const SAFETY_VALUES = new Set<CacheSafety>([
   "safe",
   "rebuild",
@@ -31,7 +38,7 @@ export async function loadConfig(root: string): Promise<NukecacheConfig> {
   try {
     value = JSON.parse(source);
   } catch (error) {
-    throw new Error(`Invalid ${CONFIG_FILENAME}: ${(error as Error).message}`, {
+    throw new Error(`Invalid ${basename(path)}: ${(error as Error).message}`, {
       cause: error,
     });
   }
@@ -59,6 +66,10 @@ export async function saveConfig(
 }
 
 export function configPath(root: string): string {
+  for (const filename of CONFIG_FILENAMES) {
+    const candidate = resolve(root, filename);
+    if (existsSync(candidate)) return candidate;
+  }
   return resolve(root, CONFIG_FILENAME);
 }
 
@@ -68,11 +79,60 @@ function validateConfig(value: unknown): asserts value is NukecacheConfig {
   }
   validateStringArray(value.ignore, "ignore");
   validateStringArray(value.include, "include");
-  if (value.defaultScope !== undefined && value.defaultScope !== "project") {
-    throw new Error("config.defaultScope must be project");
+  if (
+    value.defaultScope !== undefined &&
+    value.defaultScope !== "project" &&
+    value.defaultScope !== "global" &&
+    value.defaultScope !== "all"
+  ) {
+    throw new Error("config.defaultScope must be project, global, or all");
   }
   if (value.showGlobal !== undefined && typeof value.showGlobal !== "boolean") {
     throw new Error("config.showGlobal must be a boolean");
+  }
+  if (value.dryRun !== undefined && typeof value.dryRun !== "boolean") {
+    throw new Error("config.dryRun must be a boolean");
+  }
+  if (value.safe !== undefined && typeof value.safe !== "boolean") {
+    throw new Error("config.safe must be a boolean");
+  }
+  if (value.force !== undefined && typeof value.force !== "boolean") {
+    throw new Error("config.force must be a boolean");
+  }
+  if (value.json !== undefined && typeof value.json !== "boolean") {
+    throw new Error("config.json must be a boolean");
+  }
+  if (value.packageManagers !== undefined) {
+    if (
+      !Array.isArray(value.packageManagers) ||
+      value.packageManagers.some(
+        (pm) =>
+          typeof pm !== "string" ||
+          (pm !== "npm" && pm !== "pnpm" && pm !== "yarn" && pm !== "bun"),
+      )
+    ) {
+      throw new Error(
+        "config.packageManagers must be an array of npm, pnpm, yarn, or bun",
+      );
+    }
+  }
+  if (
+    value.noUpdateCheck !== undefined &&
+    typeof value.noUpdateCheck !== "boolean"
+  ) {
+    throw new Error("config.noUpdateCheck must be a boolean");
+  }
+  if (
+    value.days !== undefined &&
+    (!Number.isSafeInteger(value.days) || (value.days as number) < 1)
+  ) {
+    throw new Error("config.days must be a positive integer");
+  }
+  if (
+    value.limit !== undefined &&
+    (!Number.isSafeInteger(value.limit) || (value.limit as number) < 1)
+  ) {
+    throw new Error("config.limit must be a positive integer");
   }
 
   if (value.custom !== undefined) {

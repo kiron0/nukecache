@@ -66,5 +66,20 @@ describe("config", () => {
     await expect(loadConfig(root)).rejects.toThrow(
       "include must be an array of strings",
     );
+
+    await writeFile(path, JSON.stringify({ force: "not-a-bool" }));
+    await expect(loadConfig(root)).rejects.toThrow(
+      "config.force must be a boolean",
+    );
+
+    await writeFile(path, JSON.stringify({ json: "not-a-bool" }));
+    await expect(loadConfig(root)).rejects.toThrow(
+      "config.json must be a boolean",
+    );
+
+    await writeFile(path, JSON.stringify({ packageManagers: ["invalid-pm"] }));
+    await expect(loadConfig(root)).rejects.toThrow(
+      "config.packageManagers must be an array of npm, pnpm, yarn, or bun",
+    );
   });
 });

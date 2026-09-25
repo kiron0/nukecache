@@ -58,8 +58,16 @@ export interface NukecacheConfig {
   ignore?: string[];
   include?: string[];
   custom?: CustomCacheDefinition[];
-  defaultScope?: "project";
+  defaultScope?: DetectionScope;
   showGlobal?: boolean;
+  dryRun?: boolean;
+  safe?: boolean;
+  packageManagers?: PackageManager[];
+  force?: boolean;
+  json?: boolean;
+  days?: number;
+  limit?: number;
+  noUpdateCheck?: boolean;
 }
 
 export interface DetectOptions {

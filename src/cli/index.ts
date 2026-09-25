@@ -31,13 +31,21 @@ import {
 } from "../update";
 import { parseCliArgs, type CliArgs } from "./args";
 import { formatConfig, runConfigCommand, runInteractiveConfig } from "./config";
+import { loadConfig } from "../project/config";
 import { createProjectContext } from "../project/root";
 
 async function main(): Promise<void> {
   try {
     const args = parseCliArgs(process.argv.slice(2));
     const version = await getVersion();
-    if (!args.noUpdateCheck && process.env.NUKECACHE_NO_UPDATE_CHECK !== "1") {
+    const context = await createProjectContext(args.cwd);
+    const config = await loadConfig(context.root);
+
+    if (
+      !args.noUpdateCheck &&
+      !config.noUpdateCheck &&
+      process.env.NUKECACHE_NO_UPDATE_CHECK !== "1"
+    ) {
       await handleUpdateCheck(version, args);
     }
     if (args.help) {
@@ -49,7 +57,6 @@ async function main(): Promise<void> {
       return;
     }
     if (args.command === "config") {
-      const context = await createProjectContext(args.cwd);
       if (
         args.configAction === "show" &&
         !args.json &&
@@ -66,10 +73,34 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (!args.json && config.json) {
+      args.json = true;
+    }
+    if (args.command === "clean" && !args.dryRun && config.dryRun) {
+      args.dryRun = true;
+    }
+    if (args.command === "clean" && !args.safe && config.safe) {
+      args.safe = true;
+    }
+    if (args.command === "clean" && !args.force && config.force) {
+      args.force = true;
+    }
+    if (
+      args.command === "largest" &&
+      args.limit === undefined &&
+      config.limit
+    ) {
+      args.limit = config.limit;
+    }
+    if (args.command === "old" && args.days === undefined && config.days) {
+      args.days = config.days;
+    }
+
     const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
     progress?.start("Detecting development caches");
     const detection = await detectCaches({
-      ...(args.cwd ? { cwd: args.cwd } : {}),
+      cwd: context.root,
+      config,
       ignore: args.ignore,
       ...(args.global
         ? { scope: args.project ? ("all" as const) : ("global" as const) }

@@ -18,6 +18,14 @@ import type { CliArgs } from "./args";
 const CONFIG_KEYS = [
   "defaultScope",
   "showGlobal",
+  "dryRun",
+  "safe",
+  "force",
+  "json",
+  "packageManagers",
+  "days",
+  "limit",
+  "noUpdateCheck",
   "ignore",
   "include",
   "custom",
@@ -26,8 +34,24 @@ type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 export interface ConfigCommandResult {
   changed?: { action: "set" | "unset"; key: ConfigKey };
-  config: Required<Pick<NukecacheConfig, "ignore" | "include" | "custom">> &
-    Pick<NukecacheConfig, "defaultScope" | "showGlobal">;
+  config: Required<
+    Pick<
+      NukecacheConfig,
+      "ignore" | "include" | "custom" | "packageManagers"
+    >
+  > &
+    Pick<
+      NukecacheConfig,
+      | "defaultScope"
+      | "showGlobal"
+      | "dryRun"
+      | "safe"
+      | "force"
+      | "json"
+      | "days"
+      | "limit"
+      | "noUpdateCheck"
+    >;
   exists: boolean;
   path: string;
 }
@@ -63,6 +87,14 @@ export async function runConfigCommand(
     config: {
       defaultScope: config.defaultScope ?? "project",
       showGlobal: config.showGlobal ?? false,
+      dryRun: config.dryRun ?? false,
+      safe: config.safe ?? false,
+      force: config.force ?? false,
+      json: config.json ?? false,
+      packageManagers: config.packageManagers ?? [],
+      days: config.days ?? 30,
+      limit: config.limit ?? 10,
+      noUpdateCheck: config.noUpdateCheck ?? false,
       ignore: config.ignore ?? [],
       include: config.include ?? [],
       custom: config.custom ?? [],
@@ -170,6 +202,14 @@ export function formatConfig(result: ConfigCommandResult): string {
     `Status        ${result.exists ? "configured" : "defaults"}`,
     `Scope         ${config.defaultScope ?? "project"}`,
     `Show global   ${String(config.showGlobal ?? false)}`,
+    `Dry run       ${String(config.dryRun ?? false)}`,
+    `Safe only     ${String(config.safe ?? false)}`,
+    `Force         ${String(config.force ?? false)}`,
+    `JSON output   ${String(config.json ?? false)}`,
+    `Pkg managers  ${formatValues(config.packageManagers)}`,
+    `Days          ${String(config.days ?? 30)}`,
+    `Limit         ${String(config.limit ?? 10)}`,
+    `Update check  ${config.noUpdateCheck ? "disabled" : "enabled"}`,
     `Ignore        ${formatValues(config.ignore)}`,
     `Include       ${formatValues(config.include)}`,
     `Custom        ${config.custom.length} definition${config.custom.length === 1 ? "" : "s"}`,
@@ -195,6 +235,9 @@ export function formatConfig(result: ConfigCommandResult): string {
     "",
     "Update options",
     "  nukecache config set showGlobal true",
+    "  nukecache config set dryRun true",
+    "  nukecache config set packageManagers '[\"pnpm\"]'",
+    "  nukecache config set days 14",
     '  nukecache config set ignore \'["vite", "turbo"]\'',
     "  nukecache config unset showGlobal",
     "  nukecache config --json",
@@ -208,6 +251,14 @@ function formatConfigSummary(result: ConfigCommandResult): string {
     `Status        ${result.exists ? "configured" : "defaults"}`,
     `Scope         ${config.defaultScope ?? "project"}`,
     `Show global   ${String(config.showGlobal ?? false)}`,
+    `Dry run       ${String(config.dryRun ?? false)}`,
+    `Safe only     ${String(config.safe ?? false)}`,
+    `Force         ${String(config.force ?? false)}`,
+    `JSON output   ${String(config.json ?? false)}`,
+    `Pkg managers  ${formatValues(config.packageManagers)}`,
+    `Days          ${String(config.days ?? 30)}`,
+    `Limit         ${String(config.limit ?? 10)}`,
+    `Update check  ${config.noUpdateCheck ? "disabled" : "enabled"}`,
     `Ignore        ${formatValues(config.ignore)}`,
     `Include       ${formatValues(config.include)}`,
     `Custom        ${config.custom.length} definition${config.custom.length === 1 ? "" : "s"}`,
@@ -225,7 +276,7 @@ async function promptConfigValue(
   config: ConfigCommandResult["config"],
 ): Promise<Awaited<ReturnType<typeof text>>> {
   if (key === "showGlobal") {
-    const value = await select({
+    return select({
       message: "Show global package-manager caches by default?",
       options: [
         { value: "true", label: "Enabled", hint: "project and global caches" },
@@ -233,19 +284,109 @@ async function promptConfigValue(
       ],
       initialValue: config.showGlobal ? "true" : "false",
     });
-    return value;
+  }
+  if (key === "dryRun") {
+    return select({
+      message: "Default to dry-run mode (preview without deleting)?",
+      options: [
+        { value: "true", label: "Enabled", hint: "always simulate cleanup" },
+        { value: "false", label: "Disabled", hint: "normal cleanup" },
+      ],
+      initialValue: config.dryRun ? "true" : "false",
+    });
+  }
+  if (key === "safe") {
+    return select({
+      message: "Restrict default cleanup to safe targets?",
+      options: [
+        { value: "true", label: "Enabled", hint: "skip rebuildable targets" },
+        { value: "false", label: "Disabled", hint: "normal selection" },
+      ],
+      initialValue: config.safe ? "true" : "false",
+    });
+  }
+  if (key === "force") {
+    return select({
+      message: "Allow clearing rebuildable and global caches without --force?",
+      options: [
+        { value: "true", label: "Enabled", hint: "dangerous / rebuildable allowed" },
+        { value: "false", label: "Disabled", hint: "require CLI --force flag" },
+      ],
+      initialValue: config.force ? "true" : "false",
+    });
+  }
+  if (key === "json") {
+    return select({
+      message: "Default output to JSON format?",
+      options: [
+        { value: "true", label: "Enabled", hint: "machine-readable JSON output" },
+        { value: "false", label: "Disabled", hint: "human-readable terminal output" },
+      ],
+      initialValue: config.json ? "true" : "false",
+    });
+  }
+  if (key === "packageManagers") {
+    const value = await text({
+      message: "Restricted package managers (npm, pnpm, yarn, bun)",
+      placeholder: "pnpm, bun",
+      initialValue: config.packageManagers.join(", "),
+    });
+    return isCancel(value)
+      ? value
+      : JSON.stringify(
+          value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        );
+  }
+  if (key === "noUpdateCheck") {
+    return select({
+      message: "Update checks for this project",
+      options: [
+        { value: "false", label: "Enabled", hint: "check npm registry" },
+        { value: "true", label: "Disabled", hint: "skip npm version queries" },
+      ],
+      initialValue: config.noUpdateCheck ? "true" : "false",
+    });
   }
   if (key === "defaultScope") {
     return select({
       message: "Default detection scope",
       options: [
+        { value: "project", label: "Project", hint: "project caches only" },
         {
-          value: "project",
-          label: "Project",
-          hint: "safest default",
+          value: "global",
+          label: "Global",
+          hint: "package-manager caches only",
         },
+        { value: "all", label: "All", hint: "both project and global" },
       ],
-      initialValue: "project",
+      initialValue: config.defaultScope ?? "project",
+    });
+  }
+  if (key === "days") {
+    return text({
+      message: "Days threshold for old command",
+      initialValue: String(config.days ?? 30),
+      validate(input) {
+        const num = Number(input);
+        return Number.isSafeInteger(num) && num > 0
+          ? undefined
+          : "Enter a positive integer.";
+      },
+    });
+  }
+  if (key === "limit") {
+    return text({
+      message: "Maximum items for largest command",
+      initialValue: String(config.limit ?? 10),
+      validate(input) {
+        const num = Number(input);
+        return Number.isSafeInteger(num) && num > 0
+          ? undefined
+          : "Enter a positive integer.";
+      },
     });
   }
   if (key === "ignore" || key === "include") {
@@ -312,6 +453,14 @@ function configLabel(key: ConfigKey): string {
   return {
     defaultScope: "Default scope",
     showGlobal: "Global caches",
+    dryRun: "Dry run mode",
+    safe: "Safe targets only",
+    force: "Force mode",
+    json: "JSON output",
+    packageManagers: "Package managers",
+    days: "Old age threshold (days)",
+    limit: "Largest items limit",
+    noUpdateCheck: "Disable update check",
     ignore: "Ignored targets",
     include: "Included paths",
     custom: "Custom cache definitions",
@@ -327,6 +476,22 @@ function configHint(
       return config.defaultScope ?? "project";
     case "showGlobal":
       return config.showGlobal ? "enabled" : "disabled";
+    case "dryRun":
+      return config.dryRun ? "enabled" : "disabled";
+    case "safe":
+      return config.safe ? "enabled" : "disabled";
+    case "force":
+      return config.force ? "enabled" : "disabled";
+    case "json":
+      return config.json ? "enabled" : "disabled";
+    case "packageManagers":
+      return `${config.packageManagers.length} managers`;
+    case "days":
+      return `${config.days ?? 30} days`;
+    case "limit":
+      return `${config.limit ?? 10} items`;
+    case "noUpdateCheck":
+      return config.noUpdateCheck ? "disabled" : "enabled";
     case "ignore":
       return `${config.ignore.length} values`;
     case "include":
@@ -349,14 +514,29 @@ function requireConfigKey(value: string | undefined): ConfigKey {
 }
 
 function parseConfigValue(key: ConfigKey, source: string): unknown {
-  if (key === "showGlobal") {
+  if (
+    key === "showGlobal" ||
+    key === "dryRun" ||
+    key === "safe" ||
+    key === "force" ||
+    key === "json" ||
+    key === "noUpdateCheck"
+  ) {
     if (source === "true") return true;
     if (source === "false") return false;
-    throw new Error("showGlobal must be true or false");
+    throw new Error(`${key} must be true or false`);
+  }
+  if (key === "days" || key === "limit") {
+    const num = Number(source);
+    if (!Number.isSafeInteger(num) || num < 1) {
+      throw new Error(`${key} must be a positive integer`);
+    }
+    return num;
   }
   if (key === "defaultScope") {
-    if (source === "project") return source;
-    throw new Error("defaultScope must be project");
+    if (source === "project" || source === "global" || source === "all")
+      return source;
+    throw new Error("defaultScope must be project, global, or all");
   }
   try {
     return JSON.parse(source) as unknown;

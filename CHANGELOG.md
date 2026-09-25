@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+- Support configuration aliases (`nkc.config.json`, `ncache.config.json`) alongside `nukecache.config.json`.
+- Expand project configuration with `defaultScope`, `dryRun`, `safe`, `force`, `json`, `packageManagers`, `days`, `limit`, and `noUpdateCheck` options.
+- Shorten update check interval to 6 hours for faster release discovery.
+
 ## 0.4.0
 
 - Add `nkc` and `ncache` command shortcuts (aliases) for `nukecache` in `package.json`.
