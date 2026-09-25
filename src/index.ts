@@ -19,6 +19,7 @@ export {
   formatBytes,
   formatList,
   formatPlan,
+  formatProjectSummary,
   formatResult,
   formatTarget,
   formatWarnings,

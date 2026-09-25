@@ -7,13 +7,14 @@ import {
   formatList,
   formatOld,
   formatPlan,
+  formatProjectSummary,
   formatResult,
   formatTarget,
   formatWarnings,
   printThanks,
   THANKS_MESSAGE,
 } from "../src/output";
-import type { CacheTarget, CleanupPlan } from "../src/types";
+import type { CacheTarget, CleanupPlan, DetectionResult } from "../src/types";
 
 describe("output", () => {
   it("formats byte units", () => {
@@ -102,6 +103,56 @@ describe("output", () => {
       "\nThanks for using nukecache..!\nFor more visit - nukecache.js.org",
     );
     spy.mockRestore();
+  });
+
+  it("formats rich project summary", () => {
+    const target = fixtureTarget();
+    const detectionWithPkg: DetectionResult = {
+      context: {
+        cwd: "/tmp/my-project",
+        root: "/tmp/my-project",
+        packageJson: { name: "test-pkg", version: "1.2.3" },
+      },
+      config: {},
+      targets: [
+        target,
+        {
+          ...target,
+          id: "rebuild-item",
+          name: "Rebuild item",
+          safety: "rebuild",
+          size: 4096,
+        },
+      ],
+      packageManagers: ["pnpm"],
+      warnings: [],
+    };
+    const summary = formatProjectSummary(detectionWithPkg);
+    expect(summary).toContain("Project:  test-pkg (v1.2.3)");
+    expect(summary).toContain("Root:     /tmp/my-project");
+    expect(summary).toContain("Managers: pnpm");
+    expect(summary).toContain("Tools:    vite");
+    expect(summary).toContain(
+      "Caches:   2 found · 6.0 KB total (2.0 KB safe to clean)",
+    );
+
+    const detectionNoPkg: DetectionResult = {
+      context: {
+        cwd: "/tmp/my-project",
+        root: "/tmp/my-project",
+      },
+      config: {},
+      targets: [],
+      packageManagers: [],
+      warnings: [],
+    };
+    const noPkgSummary = formatProjectSummary(detectionNoPkg);
+    expect(noPkgSummary).toContain("Project:  my-project");
+    expect(noPkgSummary).not.toContain("Managers:");
+    expect(noPkgSummary).not.toContain("Tools:");
+    expect(noPkgSummary).toContain(
+      "Caches:   0 found · 0 B total (0 B safe to clean)",
+    );
   });
 });
 

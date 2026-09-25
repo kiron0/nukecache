@@ -1,7 +1,10 @@
+import { basename } from "node:path";
+
 import type {
   CacheTarget,
   CleanupPlan,
   CleanupResult,
+  DetectionResult,
   DetectionWarning,
 } from "./types";
 
@@ -65,6 +68,40 @@ export function formatList(targets: CacheTarget[]): string {
   });
   const total = targets.reduce((sum, target) => sum + target.size, 0);
   return `Detected caches\n\n${sections.join("\n\n")}\n\nTotal: ${formatBytes(total)}`;
+}
+
+export function formatProjectSummary(detection: DetectionResult): string {
+  const pkgName =
+    typeof detection.context.packageJson?.name === "string"
+      ? detection.context.packageJson.name
+      : basename(detection.context.root);
+  const pkgVersion =
+    typeof detection.context.packageJson?.version === "string"
+      ? `v${detection.context.packageJson.version}`
+      : undefined;
+  const projectTitle = pkgVersion ? `${pkgName} (${pkgVersion})` : pkgName;
+
+  const tools = [...new Set(detection.targets.map((t) => t.tool))];
+  const totalBytes = detection.targets.reduce((sum, t) => sum + t.size, 0);
+  const safeBytes = detection.targets
+    .filter((t) => t.scope === "project" && t.safety === "safe")
+    .reduce((sum, t) => sum + t.size, 0);
+
+  const lines = [
+    `Project:  ${projectTitle}`,
+    `Root:     ${detection.context.root}`,
+  ];
+  if (detection.packageManagers.length > 0) {
+    lines.push(`Managers: ${detection.packageManagers.join(", ")}`);
+  }
+  if (tools.length > 0) {
+    lines.push(`Tools:    ${tools.join(", ")}`);
+  }
+  lines.push(
+    `Caches:   ${detection.targets.length} found · ${formatBytes(totalBytes)} total (${formatBytes(safeBytes)} safe to clean)`,
+  );
+
+  return lines.join("\n");
 }
 
 export function formatWarnings(warnings: DetectionWarning[]): string {

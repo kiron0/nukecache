@@ -13,20 +13,12 @@ import type {
   CacheCandidate,
   CacheTarget,
   CustomCacheDefinition,
-  DetectionWarning,
   DetectOptions,
-  NukecacheConfig,
-  PackageManager,
   ProjectContext,
+  DetectionResult,
 } from "./types";
 
-export interface DetectionResult {
-  context: ProjectContext;
-  config: NukecacheConfig;
-  targets: CacheTarget[];
-  packageManagers: PackageManager[];
-  warnings: DetectionWarning[];
-}
+export type { DetectionResult } from "./types";
 
 export async function detectCaches(
   options: DetectOptions = {},

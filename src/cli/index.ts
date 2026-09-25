@@ -20,12 +20,13 @@ import {
   formatList,
   formatOld,
   formatPlan,
+  formatProjectSummary,
   formatResult,
   formatTarget,
   formatWarnings,
   printThanks,
 } from "../output";
-import type { CacheTarget, CleanupPlan } from "../types";
+import type { CacheTarget, CleanupPlan, DetectionResult } from "../types";
 import {
   checkForUpdate,
   checkUpdateManually,
@@ -227,7 +228,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const selectedIds = await selectTargets(detection.targets, args);
+    const selectedIds = await selectTargets(detection, args);
     if (selectedIds === undefined) return;
     const plan = createCleanupPlan(detection.context.root, detection.targets, {
       selectedIds,
@@ -313,10 +314,10 @@ async function main(): Promise<void> {
 }
 
 async function selectTargets(
-  targets: CacheTarget[],
+  detection: DetectionResult,
   args: CliArgs,
 ): Promise<string[] | undefined> {
-  const eligible = targets.filter(
+  const eligible = detection.targets.filter(
     (target) =>
       !target.trackedByGit &&
       ((target.scope === "project" &&
@@ -342,13 +343,13 @@ async function selectTargets(
   }
 
   intro("nukecache");
-  console.log(formatList(targets));
+  note(formatProjectSummary(detection), "Project Overview");
   const selected = await multiselect({
     message: "Select caches to clear",
     options: eligible.map((target) => ({
       value: target.id,
       label: `${target.name} · ${formatBytes(target.size)}`,
-      hint: target.path,
+      hint: `${target.path} (${target.safety})`,
     })),
     initialValues: eligible
       .filter(

@@ -84,6 +84,14 @@ export interface DetectionWarning {
   message: string;
 }
 
+export interface DetectionResult {
+  context: ProjectContext;
+  config: NukecacheConfig;
+  targets: CacheTarget[];
+  packageManagers: PackageManager[];
+  warnings: DetectionWarning[];
+}
+
 export interface CleanupPlanItem {
   target: CacheTarget;
   action: "remove" | "skip";
