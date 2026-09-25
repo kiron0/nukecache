@@ -35,6 +35,12 @@ vi.mock("@clack/prompts", () => prompts);
 import {
   resolveConfigCollision,
   runInteractiveConfig,
+  validateCustomInput,
+  validateDaysInput,
+  validateInteractiveInput,
+  validateLimitInput,
+  validatePackageManagersInput,
+  validatePathsInput,
 } from "../src/cli/config";
 import { loadConfig } from "../src/project/config";
 
@@ -127,6 +133,88 @@ describe("interactive config", () => {
       "Configuration conflict resolved. Active file: nukecache.config.json",
     );
     expect(await loadConfig(root)).toEqual({});
+  });
+
+  describe("real-time interactive input validation", () => {
+    it("validates days in real time", () => {
+      expect(validateDaysInput("30")).toBeUndefined();
+      expect(validateDaysInput("1")).toBeUndefined();
+      expect(validateDaysInput("0")).toBe("Enter a positive integer.");
+      expect(validateDaysInput("-5")).toBe("Enter a positive integer.");
+      expect(validateDaysInput("abc")).toBe("Enter a positive integer.");
+      expect(validateDaysInput("")).toBe("Enter a positive integer.");
+      expect(validateDaysInput("1.5")).toBe("Enter a positive integer.");
+    });
+
+    it("validates limit in real time", () => {
+      expect(validateLimitInput("10")).toBeUndefined();
+      expect(validateLimitInput("1")).toBeUndefined();
+      expect(validateLimitInput("0")).toBe("Enter a positive integer.");
+      expect(validateLimitInput("NaN")).toBe("Enter a positive integer.");
+      expect(validateLimitInput("")).toBe("Enter a positive integer.");
+    });
+
+    it("validates package managers in real time", () => {
+      expect(validatePackageManagersInput("npm, pnpm")).toBeUndefined();
+      expect(validatePackageManagersInput("yarn")).toBeUndefined();
+      expect(validatePackageManagersInput("bun")).toBeUndefined();
+      expect(validatePackageManagersInput("")).toBeUndefined();
+      expect(validatePackageManagersInput("npm, , pnpm")).toBe(
+        "Package managers must not contain empty items.",
+      );
+      expect(validatePackageManagersInput("cargo")).toBe(
+        'Invalid package manager "cargo". Allowed: npm, pnpm, yarn, bun.',
+      );
+    });
+
+    it("validates paths in real time", () => {
+      expect(validatePathsInput("vite, turbo")).toBeUndefined();
+      expect(validatePathsInput("")).toBeUndefined();
+      expect(validatePathsInput("vite, , turbo")).toBe(
+        "Entries must not contain empty items.",
+      );
+    });
+
+    it("validates custom cache definitions in real time", () => {
+      expect(
+        validateCustomInput('[{"name":"Comp","paths":[".cache"]}]'),
+      ).toBeUndefined();
+      expect(validateCustomInput("")).toBe(
+        "Custom definitions must be a JSON array.",
+      );
+      expect(validateCustomInput("not-json")).toBe("Enter valid JSON.");
+      expect(validateCustomInput('{"not":"array"}')).toBe(
+        "Custom definitions must be a JSON array.",
+      );
+      expect(validateCustomInput("[{}]")).toBe(
+        "custom[0].name must be a non-empty string",
+      );
+      expect(validateCustomInput('[{"name":"test","paths":[]}]')).toBe(
+        "custom[0].paths must be an array of strings",
+      );
+      expect(
+        validateCustomInput('[{"name":"test","paths":["a"],"safety":"bad"}]'),
+      ).toBe("custom[0].safety is invalid");
+    });
+
+    it("routes validation by key using validateInteractiveInput", () => {
+      expect(validateInteractiveInput("days", "14")).toBeUndefined();
+      expect(validateInteractiveInput("days", "-1")).toBe(
+        "Enter a positive integer.",
+      );
+      expect(validateInteractiveInput("limit", "5")).toBeUndefined();
+      expect(
+        validateInteractiveInput("packageManagers", "npm"),
+      ).toBeUndefined();
+      expect(validateInteractiveInput("ignore", "vite")).toBeUndefined();
+      expect(validateInteractiveInput("include", "dist")).toBeUndefined();
+      expect(
+        validateInteractiveInput("custom", '[{"name":"X","paths":["a"]}]'),
+      ).toBeUndefined();
+      expect(
+        validateInteractiveInput("defaultScope", "project"),
+      ).toBeUndefined();
+    });
   });
 });
 

@@ -18,6 +18,7 @@ import {
   findExistingConfigFiles,
   loadConfig,
   saveConfig,
+  validateConfig,
 } from "../project/config";
 import type { NukecacheConfig } from "../types";
 import type { CliArgs } from "./args";
@@ -191,9 +192,13 @@ export async function runInteractiveConfig(root: string): Promise<void> {
       log.info("No changes saved.");
       continue;
     }
-    result = await runConfigCommand(root, configArgs("set", key, value));
-    saved = true;
-    log.success(`${configLabel(key)} updated.`);
+    try {
+      result = await runConfigCommand(root, configArgs("set", key, value));
+      saved = true;
+      log.success(`${configLabel(key)} updated.`);
+    } catch (error) {
+      log.error((error as Error).message);
+    }
   }
 }
 
@@ -275,6 +280,93 @@ function promptBoolean(
   });
 }
 
+export function validateDaysInput(input?: string): string | undefined {
+  const trimmed = input?.trim() ?? "";
+  if (trimmed === "") return "Enter a positive integer.";
+  const num = Number(trimmed);
+  return Number.isSafeInteger(num) && num > 0
+    ? undefined
+    : "Enter a positive integer.";
+}
+
+export function validateLimitInput(input?: string): string | undefined {
+  const trimmed = input?.trim() ?? "";
+  if (trimmed === "") return "Enter a positive integer.";
+  const num = Number(trimmed);
+  return Number.isSafeInteger(num) && num > 0
+    ? undefined
+    : "Enter a positive integer.";
+}
+
+export function validatePackageManagersInput(
+  input?: string,
+): string | undefined {
+  const trimmed = input?.trim() ?? "";
+  if (trimmed === "") return undefined;
+  const parts = trimmed.split(",").map((item) => item.trim());
+  if (parts.some((item) => item === "")) {
+    return "Package managers must not contain empty items.";
+  }
+  const valid = new Set(["npm", "pnpm", "yarn", "bun"]);
+  for (const item of parts) {
+    if (!valid.has(item)) {
+      return `Invalid package manager "${item}". Allowed: npm, pnpm, yarn, bun.`;
+    }
+  }
+  return undefined;
+}
+
+export function validatePathsInput(input?: string): string | undefined {
+  const trimmed = input?.trim() ?? "";
+  if (trimmed === "") return undefined;
+  const parts = trimmed.split(",").map((item) => item.trim());
+  if (parts.some((item) => item === "")) {
+    return "Entries must not contain empty items.";
+  }
+  return undefined;
+}
+
+export function validateCustomInput(input?: string): string | undefined {
+  const trimmed = input?.trim() ?? "";
+  if (trimmed === "") return "Custom definitions must be a JSON array.";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return "Enter valid JSON.";
+  }
+  if (!Array.isArray(parsed)) {
+    return "Custom definitions must be a JSON array.";
+  }
+  try {
+    validateConfig({ custom: parsed as NukecacheConfig["custom"] });
+    return undefined;
+  } catch (error) {
+    return (error as Error).message.replace(/^config\./, "");
+  }
+}
+
+export function validateInteractiveInput(
+  key: ConfigKey,
+  input?: string,
+): string | undefined {
+  switch (key) {
+    case "days":
+      return validateDaysInput(input);
+    case "limit":
+      return validateLimitInput(input);
+    case "packageManagers":
+      return validatePackageManagersInput(input);
+    case "ignore":
+    case "include":
+      return validatePathsInput(input);
+    case "custom":
+      return validateCustomInput(input);
+    default:
+      return undefined;
+  }
+}
+
 async function promptConfigValue(
   key: ConfigKey,
   config: ConfigCommandResult["config"],
@@ -324,6 +416,7 @@ async function promptConfigValue(
       message: "Restricted package managers (npm, pnpm, yarn, bun)",
       placeholder: "pnpm, bun",
       initialValue: config.packageManagers.join(", "),
+      validate: validatePackageManagersInput,
     });
     return isCancel(value)
       ? value
@@ -363,24 +456,14 @@ async function promptConfigValue(
     return text({
       message: "Days threshold for old command",
       initialValue: String(config.days ?? 30),
-      validate(input) {
-        const num = Number(input);
-        return Number.isSafeInteger(num) && num > 0
-          ? undefined
-          : "Enter a positive integer.";
-      },
+      validate: validateDaysInput,
     });
   }
   if (key === "limit") {
     return text({
       message: "Maximum items for largest command",
       initialValue: String(config.limit ?? 10),
-      validate(input) {
-        const num = Number(input);
-        return Number.isSafeInteger(num) && num > 0
-          ? undefined
-          : "Enter a positive integer.";
-      },
+      validate: validateLimitInput,
     });
   }
   if (key === "ignore" || key === "include") {
@@ -392,6 +475,7 @@ async function promptConfigValue(
           : "Additional project cache paths",
       placeholder: key === "ignore" ? "vite, turbo" : ".generated-cache",
       initialValue: values.join(", "),
+      validate: validatePathsInput,
     });
     return isCancel(value)
       ? value
@@ -406,15 +490,7 @@ async function promptConfigValue(
     message: "Custom cache definitions (JSON array)",
     initialValue: JSON.stringify(config.custom),
     placeholder: '[{"name":"Compiler","paths":[".cache"]}]',
-    validate(value) {
-      try {
-        return Array.isArray(JSON.parse(value ?? ""))
-          ? undefined
-          : "Custom definitions must be a JSON array.";
-      } catch {
-        return "Enter valid JSON.";
-      }
-    },
+    validate: validateCustomInput,
   });
 }
 
