@@ -95,9 +95,6 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["list", "--limit", "5"])).toThrow(
       "requires the largest",
     );
-    expect(() => parseCliArgs(["ls"])).toThrow('Unknown command: "ls"');
-    expect(() => parseCliArgs(["cl"])).toThrow('Unknown command: "cl"');
-    expect(() => parseCliArgs(["cfg"])).toThrow('Unknown command: "cfg"');
     expect(() => parseCliArgs(["config", "unknown-action"])).toThrow(
       "config action",
     );

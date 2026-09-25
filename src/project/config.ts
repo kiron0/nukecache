@@ -118,7 +118,9 @@ const ALLOWED_CONFIG_KEYS = new Set([
   "custom",
 ]);
 
-function validateConfig(value: unknown): asserts value is NukecacheConfig {
+export function validateConfig(
+  value: unknown,
+): asserts value is NukecacheConfig {
   if (!isRecord(value)) {
     throw new Error(`${CONFIG_FILENAME} must contain a JSON object`);
   }
