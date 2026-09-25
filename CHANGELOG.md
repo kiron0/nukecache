@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Add `nkc` and `ncache` binary aliases for `nukecache` in `package.json`.
+- Add `config` inspection and atomic updates, plus nearby command suggestions with structured CLI errors.
+- Add a complete Clack configuration workflow.
+
 ## 0.3.0
 
 - Add automatic update checks with cached registry results, interactive update choices, release ignoring, and automation opt-outs.
@@ -8,8 +14,6 @@
 - Fix Bun cache detection and cleanup outside package directories, including home-directory scans.
 - Keep package-manager caches global under home-like roots and remove project-local Yarn caches through guarded filesystem cleanup.
 - Add 250+ unit, integration, security, compatibility, argument, output, and semantic-version tests.
-- Add `config` inspection and atomic updates, plus nearby command suggestions with structured CLI errors.
-- Add a complete Clack configuration workflow and concise aliases for every command and common option.
 
 ## 0.2.0
 

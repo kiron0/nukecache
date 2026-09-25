@@ -13,20 +13,7 @@ const COMMANDS: CliCommand[] = [
   "list",
   "old",
 ];
-const COMMAND_ALIASES: Record<string, CliCommand> = {
-  cl: "clean",
-  cfg: "config",
-  ex: "explain",
-  lg: "largest",
-  ls: "list",
-  o: "old",
-};
 const OPTIONS = [
-  "-C",
-  "-a",
-  "-d",
-  "-f",
-  "-g",
   "--all",
   "--cwd",
   "--days",
@@ -34,6 +21,7 @@ const OPTIONS = [
   "--force",
   "--global",
   "--help",
+  "-h",
   "--ignore",
   "--json",
   "--limit",
@@ -41,16 +29,8 @@ const OPTIONS = [
   "--project",
   "--safe",
   "--version",
-  "--yes",
-  "-h",
-  "-i",
-  "-j",
-  "-l",
-  "-n",
-  "-p",
-  "-s",
-  "-u",
   "-v",
+  "--yes",
   "-y",
 ];
 
@@ -138,28 +118,22 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
     switch (arg) {
       case "--all":
-      case "-a":
         args.all = true;
         args.safe = true;
         break;
       case "--cwd":
-      case "-C":
         args.cwd = requireValue(argv, ++index, arg);
         break;
       case "--dry-run":
-      case "-n":
         args.dryRun = true;
         break;
       case "--days":
-      case "-d":
         args.days = requirePositiveInteger(argv, ++index, arg);
         break;
       case "--force":
-      case "-f":
         args.force = true;
         break;
       case "--global":
-      case "-g":
         args.global = true;
         break;
       case "--help":
@@ -167,27 +141,21 @@ export function parseCliArgs(argv: string[]): CliArgs {
         args.help = true;
         break;
       case "--ignore":
-      case "-i":
         args.ignore.push(requireValue(argv, ++index, arg));
         break;
       case "--json":
-      case "-j":
         args.json = true;
         break;
       case "--limit":
-      case "-l":
         args.limit = requirePositiveInteger(argv, ++index, arg);
         break;
       case "--no-update-check":
-      case "-u":
         args.noUpdateCheck = true;
         break;
       case "--project":
-      case "-p":
         args.project = true;
         break;
       case "--safe":
-      case "-s":
         args.safe = true;
         break;
       case "--version":
@@ -203,14 +171,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
           arg ?? "",
           arg?.startsWith("-")
             ? OPTIONS
-            : [
-                ...COMMANDS,
-                ...Object.keys(COMMAND_ALIASES),
-                "npm",
-                "pnpm",
-                "yarn",
-                "bun",
-              ],
+            : [...COMMANDS, "npm", "pnpm", "yarn", "bun"],
           arg?.startsWith("-") ? "option" : "command",
         );
     }
@@ -267,7 +228,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
 function resolveCommand(value: string): CliCommand | undefined {
   if (COMMANDS.includes(value as CliCommand)) return value as CliCommand;
-  return COMMAND_ALIASES[value];
+  return undefined;
 }
 
 function usageError(

@@ -1,13 +1,15 @@
 {
   "name": "nukecache",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Detect, inspect, and safely clear development caches from one CLI.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "nukecache": "./dist/cli.js"
+    "nukecache": "./dist/cli.js",
+    "nkc": "./dist/cli.js",
+    "ncache": "./dist/cli.js"
   },
   "exports": {
     ".": {

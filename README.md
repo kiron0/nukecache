@@ -35,7 +35,6 @@ nukecache explain vite
 
 # Inspect or update project configuration
 nukecache config
-nukecache cfg
 nukecache config set showGlobal true
 nukecache config set ignore '["vite", "turbo"]'
 nukecache config unset showGlobal
@@ -150,9 +149,7 @@ selection, setting selection, typed values, confirmation, success, and
 cancellation. Non-interactive terminals retain deterministic plain or JSON
 output.
 
-Command aliases: `cl` (clean), `cfg` (config), `ls` (list), `ex` (explain),
-`lg` (largest), and `o` (old). Common flags also have short forms: `-a`, `-C`,
-`-n`, `-d`, `-f`, `-g`, `-i`, `-j`, `-l`, `-u`, `-p`, and `-s`.
+Command aliases in `package.json` provide short binary names `nkc` and `ncache` alongside `nukecache`.
 
 Commit `nukecache.config.json` at the project root:
 
