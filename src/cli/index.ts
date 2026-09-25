@@ -30,6 +30,8 @@ import {
   type UpdateInfo,
 } from "../update";
 import { parseCliArgs, type CliArgs } from "./args";
+import { formatConfig, runConfigCommand, runInteractiveConfig } from "./config";
+import { createProjectContext } from "../project/root";
 
 async function main(): Promise<void> {
   try {
@@ -44,6 +46,23 @@ async function main(): Promise<void> {
     }
     if (args.version) {
       console.log(`nukecache ${version}`);
+      return;
+    }
+    if (args.command === "config") {
+      const context = await createProjectContext(args.cwd);
+      if (
+        args.configAction === "show" &&
+        !args.json &&
+        process.stdin.isTTY &&
+        process.stdout.isTTY
+      ) {
+        await runInteractiveConfig(context.root);
+        return;
+      }
+      const result = await runConfigCommand(context.root, args);
+      console.log(
+        args.json ? JSON.stringify(result, null, 2) : formatConfig(result),
+      );
       return;
     }
 
@@ -398,11 +417,14 @@ function printHelp(): void {
 
 Usage:
   nukecache                         Interactive project cleanup
-  nukecache list [--json]           Inspect caches without deleting
-  nukecache largest [--limit 10]    Show largest detected caches
-  nukecache old [--days 30]         Show caches unchanged for N days
-  nukecache explain <id|path|tool>  Explain matching caches
-  nukecache clean                   Interactive cleanup
+  nukecache list|ls [--json]        Inspect caches without deleting
+  nukecache config|cfg              Interactive project configuration
+  nukecache config set <key> <val>  Update project configuration
+  nukecache config unset <key>      Remove configured value
+  nukecache largest|lg [--limit 10] Show largest detected caches
+  nukecache old|o [--days 30]       Show caches unchanged for N days
+  nukecache explain|ex <target>     Explain matching caches
+  nukecache clean|cl                Interactive cleanup
   nukecache clean --safe --yes      Remove all safe, untracked project caches
   nukecache npm                     Clean npm's global cache interactively
   nukecache pnpm --dry-run          Preview pnpm store pruning
@@ -410,18 +432,18 @@ Usage:
   nukecache --dry-run               Preview safe cleanup
 
 Options:
-  --all                             Select all safe project caches
-  --cwd <path>                      Scan another project directory
-  --dry-run                         Preview; never delete
-  --days <number>                   Age threshold for old command
-  --force                           Include rebuildable/global caches
-  --global                          Package-manager cache scope
-  --ignore <id|tool|path>           Skip target (repeatable)
-  --json                            Emit machine-readable JSON
-  --limit <number>                  Result limit for largest command
-  --no-update-check                 Disable update check for this run
-  --project                         Include project scope with --global
-  --safe                            Restrict cleanup to safe targets
+  --all, -a                         Select all safe project caches
+  --cwd, -C <path>                  Scan another project directory
+  --dry-run, -n                     Preview; never delete
+  --days, -d <number>               Age threshold for old command
+  --force, -f                       Include rebuildable/global caches
+  --global, -g                      Package-manager cache scope
+  --ignore, -i <id|tool|path>       Skip target (repeatable)
+  --json, -j                        Emit machine-readable JSON
+  --limit, -l <number>              Result limit for largest command
+  --no-update-check, -u             Disable update check for this run
+  --project, -p                     Include project scope with --global
+  --safe, -s                        Restrict cleanup to safe targets
   --yes, -y                         Skip confirmation; global requires --force
   --help, -h                        Show help
   --version, -v                     Show version`);

@@ -9,7 +9,7 @@ export {
 export { calculateSize } from "./filesystem/size";
 export { assertSafeProjectTarget } from "./filesystem/safety";
 export { findProjectRoot, createProjectContext } from "./project/root";
-export { loadConfig } from "./project/config";
+export { configPath, loadConfig, saveConfig } from "./project/config";
 export {
   detectPackageManagers,
   isPackageManager,

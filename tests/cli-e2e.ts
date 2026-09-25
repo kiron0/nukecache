@@ -30,6 +30,11 @@ interface CacheOutput {
   modifiedAt: string;
 }
 
+interface ConfigOutput {
+  config: { showGlobal: boolean };
+  exists: boolean;
+}
+
 type ExecFailure = Error & { code: number; stderr: string };
 
 const execFileAsync = promisify(execFile);
@@ -115,12 +120,44 @@ try {
   const version = await execFileAsync(process.execPath, [cli, "--version"]);
   assert.equal(version.stdout.trim(), `nukecache ${packageVersion}`);
 
+  const configured = await execFileAsync(process.execPath, [
+    cli,
+    "config",
+    "set",
+    "showGlobal",
+    "true",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  const configResult = parseJson<ConfigOutput>(configured.stdout);
+  assert.equal(configResult.exists, true);
+  assert.equal(configResult.config.showGlobal, true);
+
+  const unset = await execFileAsync(process.execPath, [
+    cli,
+    "config",
+    "unset",
+    "showGlobal",
+    "--json",
+    "--cwd",
+    directory,
+  ]);
+  assert.equal(parseJson<ConfigOutput>(unset.stdout).config.showGlobal, false);
+
   await assert.rejects(
     execFileAsync(process.execPath, [cli, "--unknown"]),
     (error: unknown) =>
       isExecFailure(error) &&
       error.code === 1 &&
       error.stderr.includes("Unknown option"),
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, [cli, "confg"]),
+    (error: unknown) =>
+      isExecFailure(error) &&
+      error.code === 1 &&
+      error.stderr.includes("nukecache config"),
   );
 } finally {
   await rm(directory, { recursive: true, force: true });

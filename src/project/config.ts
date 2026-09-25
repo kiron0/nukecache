@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
 import type {
@@ -7,7 +8,7 @@ import type {
   NukecacheConfig,
 } from "../types";
 
-const CONFIG_FILENAME = "nukecache.config.json";
+export const CONFIG_FILENAME = "nukecache.config.json";
 const SAFETY_VALUES = new Set<CacheSafety>([
   "safe",
   "rebuild",
@@ -17,7 +18,7 @@ const SAFETY_VALUES = new Set<CacheSafety>([
 ]);
 
 export async function loadConfig(root: string): Promise<NukecacheConfig> {
-  const path = resolve(root, CONFIG_FILENAME);
+  const path = configPath(root);
   let source: string;
   try {
     source = await readFile(path, "utf8");
@@ -35,8 +36,36 @@ export async function loadConfig(root: string): Promise<NukecacheConfig> {
     });
   }
 
-  if (!isRecord(value))
+  validateConfig(value);
+  return value;
+}
+
+export async function saveConfig(
+  root: string,
+  config: NukecacheConfig,
+): Promise<string> {
+  validateConfig(config);
+  const path = configPath(root);
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  try {
+    await rename(temporaryPath, path);
+  } finally {
+    await rm(temporaryPath, { force: true });
+  }
+  return path;
+}
+
+export function configPath(root: string): string {
+  return resolve(root, CONFIG_FILENAME);
+}
+
+function validateConfig(value: unknown): asserts value is NukecacheConfig {
+  if (!isRecord(value)) {
     throw new Error(`${CONFIG_FILENAME} must contain a JSON object`);
+  }
   validateStringArray(value.ignore, "ignore");
   validateStringArray(value.include, "include");
   if (value.defaultScope !== undefined && value.defaultScope !== "project") {
@@ -51,8 +80,6 @@ export async function loadConfig(root: string): Promise<NukecacheConfig> {
       throw new Error("config.custom must be an array");
     value.custom.forEach(validateCustomDefinition);
   }
-
-  return value;
 }
 
 function validateCustomDefinition(value: unknown, index: number): void {

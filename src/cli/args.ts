@@ -1,11 +1,65 @@
 import { isPackageManager } from "../project/package-manager";
 import type { PackageManager } from "../types";
 
-export type CliCommand = "clean" | "explain" | "largest" | "list" | "old";
+export type CliCommand =
+  "clean" | "config" | "explain" | "largest" | "list" | "old";
+export type ConfigAction = "set" | "show" | "unset";
+
+const COMMANDS: CliCommand[] = [
+  "clean",
+  "config",
+  "explain",
+  "largest",
+  "list",
+  "old",
+];
+const COMMAND_ALIASES: Record<string, CliCommand> = {
+  cl: "clean",
+  cfg: "config",
+  ex: "explain",
+  lg: "largest",
+  ls: "list",
+  o: "old",
+};
+const OPTIONS = [
+  "-C",
+  "-a",
+  "-d",
+  "-f",
+  "-g",
+  "--all",
+  "--cwd",
+  "--days",
+  "--dry-run",
+  "--force",
+  "--global",
+  "--help",
+  "--ignore",
+  "--json",
+  "--limit",
+  "--no-update-check",
+  "--project",
+  "--safe",
+  "--version",
+  "--yes",
+  "-h",
+  "-i",
+  "-j",
+  "-l",
+  "-n",
+  "-p",
+  "-s",
+  "-u",
+  "-v",
+  "-y",
+];
 
 export interface CliArgs {
   all: boolean;
   command: CliCommand;
+  configAction?: ConfigAction;
+  configKey?: string;
+  configValue?: string;
   cwd?: string;
   dryRun: boolean;
   days?: number;
@@ -44,16 +98,26 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
-    if (
-      arg === "list" ||
-      arg === "clean" ||
-      arg === "largest" ||
-      arg === "old" ||
-      arg === "explain"
-    ) {
+    const command = arg ? resolveCommand(arg) : undefined;
+    if (command) {
       if (commandSeen) throw new Error(`Unexpected command: ${arg}`);
-      args.command = arg;
+      args.command = command;
       commandSeen = true;
+      continue;
+    }
+    if (args.command === "config" && arg && !arg.startsWith("-")) {
+      if (!args.configAction) {
+        if (arg !== "show" && arg !== "set" && arg !== "unset") {
+          throw usageError(arg, ["show", "set", "unset"], "config action");
+        }
+        args.configAction = arg;
+      } else if (!args.configKey && args.configAction !== "show") {
+        args.configKey = arg;
+      } else if (!args.configValue && args.configAction === "set") {
+        args.configValue = arg;
+      } else {
+        throw new Error(`Unexpected config argument: ${arg}`);
+      }
       continue;
     }
     if (args.command === "explain" && arg && !arg.startsWith("-")) {
@@ -74,22 +138,28 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
     switch (arg) {
       case "--all":
+      case "-a":
         args.all = true;
         args.safe = true;
         break;
       case "--cwd":
+      case "-C":
         args.cwd = requireValue(argv, ++index, arg);
         break;
       case "--dry-run":
+      case "-n":
         args.dryRun = true;
         break;
       case "--days":
+      case "-d":
         args.days = requirePositiveInteger(argv, ++index, arg);
         break;
       case "--force":
+      case "-f":
         args.force = true;
         break;
       case "--global":
+      case "-g":
         args.global = true;
         break;
       case "--help":
@@ -97,21 +167,27 @@ export function parseCliArgs(argv: string[]): CliArgs {
         args.help = true;
         break;
       case "--ignore":
+      case "-i":
         args.ignore.push(requireValue(argv, ++index, arg));
         break;
       case "--json":
+      case "-j":
         args.json = true;
         break;
       case "--limit":
+      case "-l":
         args.limit = requirePositiveInteger(argv, ++index, arg);
         break;
       case "--no-update-check":
+      case "-u":
         args.noUpdateCheck = true;
         break;
       case "--project":
+      case "-p":
         args.project = true;
         break;
       case "--safe":
+      case "-s":
         args.safe = true;
         break;
       case "--version":
@@ -123,7 +199,20 @@ export function parseCliArgs(argv: string[]): CliArgs {
         args.yes = true;
         break;
       default:
-        throw new Error(`Unknown option or command: ${arg}`);
+        throw usageError(
+          arg ?? "",
+          arg?.startsWith("-")
+            ? OPTIONS
+            : [
+                ...COMMANDS,
+                ...Object.keys(COMMAND_ALIASES),
+                "npm",
+                "pnpm",
+                "yarn",
+                "bun",
+              ],
+          arg?.startsWith("-") ? "option" : "command",
+        );
     }
   }
 
@@ -135,6 +224,19 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
   if (args.command === "explain" && !args.explainTarget) {
     throw new Error("explain requires a cache ID, tool, name, or path");
+  }
+  if (args.command === "config") {
+    const action = args.configAction ?? "show";
+    args.configAction = action;
+    if (
+      action === "set" &&
+      (!args.configKey || args.configValue === undefined)
+    ) {
+      throw new Error("config set requires a key and value");
+    }
+    if (action === "unset" && !args.configKey) {
+      throw new Error("config unset requires a key");
+    }
   }
   if (args.command !== "old" && args.days !== undefined) {
     throw new Error("--days requires the old command");
@@ -161,6 +263,67 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
 
   return args;
+}
+
+function resolveCommand(value: string): CliCommand | undefined {
+  if (COMMANDS.includes(value as CliCommand)) return value as CliCommand;
+  return COMMAND_ALIASES[value];
+}
+
+function usageError(
+  value: string,
+  candidates: readonly string[],
+  kind: string,
+): Error {
+  const suggestions = nearby(value, candidates);
+  const lines = [`✖ Unknown ${kind}: "${value}"`];
+  if (suggestions.length > 0) {
+    lines.push("│", "├─ Did you mean?");
+    lines.push(
+      ...suggestions.map((suggestion) =>
+        kind === "config action"
+          ? `│  • nukecache config ${suggestion}`
+          : `│  • nukecache ${suggestion}`,
+      ),
+    );
+  }
+  lines.push("│", "└─ Run `nukecache --help` for all commands.");
+  return new Error(lines.join("\n"));
+}
+
+function nearby(value: string, candidates: readonly string[]): string[] {
+  const normalized = value.toLowerCase();
+  const maximumDistance = Math.max(2, Math.floor(normalized.length * 0.4));
+  return candidates
+    .map((candidate) => ({
+      candidate,
+      distance: editDistance(normalized, candidate.toLowerCase()),
+    }))
+    .filter(({ distance }) => distance <= maximumDistance)
+    .sort(
+      (left, right) =>
+        left.distance - right.distance ||
+        left.candidate.localeCompare(right.candidate),
+    )
+    .slice(0, 3)
+    .map(({ candidate }) => candidate);
+}
+
+function editDistance(left: string, right: string): number {
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex++) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex++) {
+      current[rightIndex] = Math.min(
+        (current[rightIndex - 1] ?? 0) + 1,
+        (previous[rightIndex] ?? 0) + 1,
+        (previous[rightIndex - 1] ?? 0) +
+          (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length] ?? right.length;
 }
 
 function requirePositiveInteger(

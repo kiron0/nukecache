@@ -8,6 +8,8 @@
 - Fix Bun cache detection and cleanup outside package directories, including home-directory scans.
 - Keep package-manager caches global under home-like roots and remove project-local Yarn caches through guarded filesystem cleanup.
 - Add 250+ unit, integration, security, compatibility, argument, output, and semantic-version tests.
+- Add `config` inspection and atomic updates, plus nearby command suggestions with structured CLI errors.
+- Add a complete Clack configuration workflow and concise aliases for every command and common option.
 
 ## 0.2.0
 

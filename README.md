@@ -33,6 +33,13 @@ nukecache old --days 30
 # Explain a cache by ID, tool, name, or path
 nukecache explain vite
 
+# Inspect or update project configuration
+nukecache config
+nukecache cfg
+nukecache config set showGlobal true
+nukecache config set ignore '["vite", "turbo"]'
+nukecache config unset showGlobal
+
 # Preview safe cleanup
 nukecache --dry-run
 
@@ -122,6 +129,30 @@ Cleanup uses a detect → classify → plan → confirm → delete → verify pi
 `--dry-run` constructs the same cleanup plan but never deletes files.
 
 ## Configuration
+
+Inspect effective defaults, file location, custom definitions, and update commands:
+
+```bash
+nukecache config
+nukecache config --json
+```
+
+Updates are validated and written atomically to `nukecache.config.json`:
+
+```bash
+nukecache config set showGlobal true
+nukecache config set include '[".generated-cache"]'
+nukecache config unset showGlobal
+```
+
+Interactive terminals use Clack throughout: configuration summary, action
+selection, setting selection, typed values, confirmation, success, and
+cancellation. Non-interactive terminals retain deterministic plain or JSON
+output.
+
+Command aliases: `cl` (clean), `cfg` (config), `ls` (list), `ex` (explain),
+`lg` (largest), and `o` (old). Common flags also have short forms: `-a`, `-C`,
+`-n`, `-d`, `-f`, `-g`, `-i`, `-j`, `-l`, `-u`, `-p`, and `-s`.
 
 Commit `nukecache.config.json` at the project root:
 
