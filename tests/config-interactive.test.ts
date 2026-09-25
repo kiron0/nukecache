@@ -135,6 +135,36 @@ describe("interactive config", () => {
     expect(await loadConfig(root)).toEqual({});
   });
 
+  it("aborts when user cancels duplicate file selection", async () => {
+    const root = await project();
+    await writeFile(join(root, "nukecache.config.json"), "{}");
+    await writeFile(join(root, "nkc.config.json"), "{}");
+
+    prompts.selectValues.push(prompts.cancelSymbol);
+    await expect(resolveConfigCollision(root, true)).rejects.toThrow(
+      "Aborted config resolution.",
+    );
+    expect(prompts.cancel).toHaveBeenCalledWith(
+      "Aborted. Multiple configuration files still exist.",
+    );
+  });
+
+  it("aborts when user declines confirmation to delete duplicate file", async () => {
+    const root = await project();
+    const nkcFile = join(root, "nkc.config.json");
+    await writeFile(join(root, "nukecache.config.json"), "{}");
+    await writeFile(nkcFile, "{}");
+
+    prompts.selectValues.push(nkcFile);
+    prompts.confirmValues.push(false);
+    await expect(resolveConfigCollision(root, true)).rejects.toThrow(
+      "Aborted config resolution.",
+    );
+    expect(prompts.cancel).toHaveBeenCalledWith(
+      "Aborted. File was not removed.",
+    );
+  });
+
   describe("real-time interactive input validation", () => {
     it("validates days in real time", () => {
       expect(validateDaysInput("30")).toBeUndefined();

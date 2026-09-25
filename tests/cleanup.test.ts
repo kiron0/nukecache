@@ -209,6 +209,65 @@ describe("cleanup", () => {
     });
   });
 
+  it("uses allowlisted native cleanup for pnpm and yarn", async () => {
+    const root = await project();
+    const pnpmCache = await mkdtemp(join(tmpdir(), "nukecache-pnpm-"));
+    const pnpmTarget = fixtureTarget({
+      id: "pnpm-cache",
+      absolutePath: pnpmCache,
+      scope: "global",
+      safety: "global",
+      tool: "pnpm",
+      cleanup: {
+        kind: "command",
+        command: "pnpm",
+        args: ["store", "prune", "--store-dir", pnpmCache],
+        cwd: root,
+      },
+    });
+    const yarnTarget = fixtureTarget({
+      id: "yarn-cache",
+      absolutePath: await mkdtemp(join(tmpdir(), "nukecache-yarn-")),
+      scope: "global",
+      safety: "global",
+      tool: "yarn",
+      cleanup: {
+        kind: "command",
+        command: "yarn",
+        args: ["cache", "clean"],
+        cwd: root,
+      },
+    });
+    const plan = createCleanupPlan(root, [pnpmTarget, yarnTarget], {
+      allowGlobal: true,
+    });
+    const result = await executeCleanup(plan, {
+      commandRunner: () => Promise.resolve(""),
+    });
+    expect(result.failed).toEqual([]);
+    expect(result.removed).toHaveLength(2);
+  });
+
+  it("rejects native cleanup command that does not match target context", async () => {
+    const root = await project();
+    const cache = join(root, ".cache");
+    await mkdir(cache, { recursive: true });
+    const target = fixtureTarget({
+      absolutePath: cache,
+      tool: "npm",
+      cleanup: {
+        kind: "command",
+        command: "pnpm",
+        args: ["store", "prune", "--store-dir", cache],
+        cwd: root,
+      },
+    });
+    const result = await executeCleanup(createCleanupPlan(root, [target]), {
+      commandRunner: () => Promise.resolve(""),
+    });
+    expect(result.failed[0]?.error).toContain("does not match target context");
+  });
+
   it("removes a symlink itself without touching its destination", async () => {
     const root = await project();
     const outside = await mkdtemp(join(tmpdir(), "nukecache-destination-"));

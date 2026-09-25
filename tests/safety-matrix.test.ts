@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -113,4 +113,32 @@ describe("mapWithConcurrency matrix", () => {
       expect(result).toEqual(items.map((val) => val * 2));
     },
   );
+
+  it("handles sparse or undefined array items", async () => {
+    const items = [undefined, "item", undefined];
+    const result = await mapWithConcurrency(items, 2, async (val) => {
+      await Promise.resolve();
+      return val ? val.toUpperCase() : "NONE";
+    });
+    expect(result).toEqual([undefined, "ITEM", undefined]);
+  });
+});
+
+describe("safety matrix - symlinked boundary escape", () => {
+  it("rejects non-symlink target reached through symlinked parent outside project", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nukecache-safety-root-"));
+    const outside = await mkdtemp(join(tmpdir(), "nukecache-safety-outside-"));
+    try {
+      await mkdir(join(outside, "inner"), { recursive: true });
+      await writeFile(join(outside, "inner", "file.txt"), "data");
+      await symlink(outside, join(root, "symlink-folder"), "dir");
+      const target = join(root, "symlink-folder", "inner");
+      await expect(assertSafeProjectTarget(root, target)).rejects.toThrow(
+        "Target resolves outside project boundary",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
 });

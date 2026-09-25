@@ -37,6 +37,11 @@ describe("output", () => {
     expect(formatAge(Date.now())).toBe("now");
     expect(formatAge(Date.now() - 300_000)).toBe("5m ago");
     expect(formatAge(Date.now() - 7_200_000)).toBe("2h ago");
+    const small = { ...target, id: "small", size: 500, name: "Small cache" };
+    const large = { ...target, id: "large", size: 5000, name: "Large cache" };
+    const sortedLargest = formatLargest([small, large], 2);
+    expect(sortedLargest).toContain("1. Large cache");
+    expect(sortedLargest).toContain("2. Small cache");
     expect(formatLargest([target], 1)).toContain("1. Vite cache");
     expect(formatLargest([], 5)).toBe("No supported development caches found.");
     expect(formatOld([target], 1)).toContain("Age uses cache path timestamps");

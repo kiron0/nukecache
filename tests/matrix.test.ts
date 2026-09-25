@@ -7,6 +7,7 @@ import {
   isPackageManager,
   parsePackageManager,
 } from "../src/project/package-manager";
+import { resolveExecutable } from "../src/process/command";
 import type { CacheSafety, CacheTarget } from "../src/types";
 import { compareVersions } from "../src/update";
 
@@ -361,3 +362,29 @@ function fixtureTarget(overrides: Partial<CacheTarget>): CacheTarget {
     ...overrides,
   };
 }
+
+describe("process command matrix", () => {
+  it("resolves executables for win32 platform", () => {
+    const originalPlatform = process.platform;
+    try {
+      Object.defineProperty(process, "platform", { value: "win32" });
+      expect(resolveExecutable("bun")).toBe("bun.exe");
+      expect(resolveExecutable("npm")).toBe("npm.cmd");
+      expect(resolveExecutable("pnpm")).toBe("pnpm.cmd");
+      expect(resolveExecutable("yarn")).toBe("yarn.cmd");
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    }
+  });
+
+  it("resolves executables for posix platform", () => {
+    const originalPlatform = process.platform;
+    try {
+      Object.defineProperty(process, "platform", { value: "darwin" });
+      expect(resolveExecutable("bun")).toBe("bun");
+      expect(resolveExecutable("npm")).toBe("npm");
+    } finally {
+      Object.defineProperty(process, "platform", { value: originalPlatform });
+    }
+  });
+});
