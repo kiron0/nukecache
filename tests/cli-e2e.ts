@@ -35,7 +35,7 @@ interface ConfigOutput {
   exists: boolean;
 }
 
-type ExecFailure = Error & { code: number; stderr: string };
+type ExecFailure = Error & { code: number; stdout: string; stderr: string };
 
 const execFileAsync = promisify(execFile);
 process.env.NUKECACHE_NO_UPDATE_CHECK = "1";
@@ -118,7 +118,8 @@ try {
   await assert.rejects(access(cache));
 
   const version = await execFileAsync(process.execPath, [cli, "--version"]);
-  assert.equal(version.stdout.trim(), `nukecache ${packageVersion}`);
+  assert.ok(version.stdout.includes(`nukecache ${packageVersion}`));
+  assert.ok(version.stdout.includes("Thanks for using nukecache..!"));
 
   const checkUpdateJson = await execFileAsync(process.execPath, [
     cli,
@@ -162,14 +163,16 @@ try {
     (error: unknown) =>
       isExecFailure(error) &&
       error.code === 1 &&
-      error.stderr.includes("Unknown option"),
+      error.stderr.includes("Unknown option") &&
+      error.stdout.includes("Thanks for using nukecache..!"),
   );
   await assert.rejects(
     execFileAsync(process.execPath, [cli, "confg"]),
     (error: unknown) =>
       isExecFailure(error) &&
       error.code === 1 &&
-      error.stderr.includes("nukecache config"),
+      error.stderr.includes("nukecache config") &&
+      error.stdout.includes("Thanks for using nukecache..!"),
   );
 } finally {
   await rm(directory, { recursive: true, force: true });
@@ -200,6 +203,8 @@ function isExecFailure(error: unknown): error is ExecFailure {
     "code" in error &&
     typeof error.code === "number" &&
     "stderr" in error &&
-    typeof error.stderr === "string"
+    typeof error.stderr === "string" &&
+    "stdout" in error &&
+    typeof (error as ExecFailure).stdout === "string"
   );
 }

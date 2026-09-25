@@ -293,12 +293,22 @@ async function main(): Promise<void> {
     if (args.json) console.log(JSON.stringify(result, null, 2));
     else {
       console.log(formatResult(result));
-      if (result.failed.length === 0) printThanks();
+      printThanks();
     }
     if (result.failed.length > 0) process.exitCode = 1;
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "Aborted config resolution."
+    ) {
+      process.exitCode = 1;
+      return;
+    }
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
+    if (!process.argv.includes("--json")) {
+      printThanks();
+    }
   }
 }
 
@@ -501,7 +511,12 @@ async function handleManualUpdateCheck(
         ],
         initialValue: "install",
       });
-      if (!isCancel(answer) && answer === "install") {
+      if (isCancel(answer)) {
+        cancel("Cancelled.");
+        printThanks();
+        return;
+      }
+      if (answer === "install") {
         console.log(`Updating to ${result.latestVersion}...`);
         await installUpdate(result.latestVersion);
         outro(
