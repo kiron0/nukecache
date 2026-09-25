@@ -3,6 +3,8 @@
 ## 0.5.0
 
 - Support configuration aliases (`nkc.config.json`, `ncache.config.json`) alongside `nukecache.config.json`.
+- Add JSON Schema hosted at `https://nukecache.js.org/schema.json` with strict validation.
+- Detect multiple config file collisions, providing interactive deletion options to avoid ambiguous behavior.
 - Expand project configuration with `defaultScope`, `dryRun`, `safe`, `force`, `json`, `packageManagers`, `days`, `limit`, and `noUpdateCheck` options.
 - Shorten update check interval to 6 hours for faster release discovery.
 

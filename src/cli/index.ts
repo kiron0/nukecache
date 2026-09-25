@@ -30,7 +30,12 @@ import {
   type UpdateInfo,
 } from "../update";
 import { parseCliArgs, type CliArgs } from "./args";
-import { formatConfig, runConfigCommand, runInteractiveConfig } from "./config";
+import {
+  formatConfig,
+  resolveConfigCollision,
+  runConfigCommand,
+  runInteractiveConfig,
+} from "./config";
 import { loadConfig } from "../project/config";
 import { createProjectContext } from "../project/root";
 
@@ -38,7 +43,19 @@ async function main(): Promise<void> {
   try {
     const args = parseCliArgs(process.argv.slice(2));
     const version = await getVersion();
+    if (args.help) {
+      printHelp();
+      return;
+    }
+    if (args.version) {
+      console.log(`nukecache ${version}`);
+      return;
+    }
+
     const context = await createProjectContext(args.cwd);
+    const isInteractive =
+      !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
+    await resolveConfigCollision(context.root, isInteractive);
     const config = await loadConfig(context.root);
 
     if (
@@ -47,14 +64,6 @@ async function main(): Promise<void> {
       process.env.NUKECACHE_NO_UPDATE_CHECK !== "1"
     ) {
       await handleUpdateCheck(version, args);
-    }
-    if (args.help) {
-      printHelp();
-      return;
-    }
-    if (args.version) {
-      console.log(`nukecache ${version}`);
-      return;
     }
     if (args.command === "config") {
       if (

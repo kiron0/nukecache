@@ -55,6 +55,7 @@ export interface CustomCacheDefinition {
 }
 
 export interface NukecacheConfig {
+  $schema?: string;
   ignore?: string[];
   include?: string[];
   custom?: CustomCacheDefinition[];

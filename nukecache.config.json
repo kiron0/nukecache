@@ -1,1 +1,16 @@
-{}
+{
+  "$schema": "https://nukecache.js.org/schema.json",
+  "defaultScope": "project",
+  "showGlobal": false,
+  "dryRun": false,
+  "safe": false,
+  "force": false,
+  "json": false,
+  "packageManagers": ["npm"],
+  "days": 30,
+  "limit": 10,
+  "noUpdateCheck": false,
+  "ignore": [],
+  "include": [],
+  "custom": []
+}

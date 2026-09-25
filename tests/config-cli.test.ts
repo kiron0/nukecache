@@ -5,7 +5,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { parseCliArgs } from "../src/cli/args";
-import { formatConfig, runConfigCommand } from "../src/cli/config";
+import {
+  formatConfig,
+  resolveConfigCollision,
+  runConfigCommand,
+} from "../src/cli/config";
 import { loadConfig } from "../src/project/config";
 
 const temporaryDirectories: string[] = [];
@@ -167,6 +171,16 @@ describe("config command", () => {
     expect(config.days).toBe(45);
     expect(config.limit).toBe(20);
     expect(config.noUpdateCheck).toBe(true);
+  });
+
+  it("fails fast on multiple config collision in non-interactive mode", async () => {
+    const root = await project();
+    await writeFile(join(root, "nukecache.config.json"), "{}");
+    await writeFile(join(root, "nkc.config.json"), "{}");
+
+    await expect(resolveConfigCollision(root, false)).rejects.toThrow(
+      "Multiple configuration files found: nukecache.config.json, nkc.config.json",
+    );
   });
 });
 

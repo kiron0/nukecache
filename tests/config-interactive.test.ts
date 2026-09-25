@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -18,7 +18,7 @@ const prompts = vi.hoisted(() => {
     confirm: vi.fn(() => Promise.resolve(confirmValues.shift() ?? true)),
     intro: vi.fn(),
     isCancel: (value: unknown) => value === cancelSymbol,
-    log: { info: vi.fn(), success: vi.fn() },
+    log: { error: vi.fn(), info: vi.fn(), step: vi.fn(), success: vi.fn() },
     note: vi.fn(),
     outro: vi.fn(),
     select: vi.fn(() => Promise.resolve(selectValues.shift() ?? cancelSymbol)),
@@ -32,7 +32,10 @@ const prompts = vi.hoisted(() => {
 
 vi.mock("@clack/prompts", () => prompts);
 
-import { runInteractiveConfig } from "../src/cli/config";
+import {
+  resolveConfigCollision,
+  runInteractiveConfig,
+} from "../src/cli/config";
 import { loadConfig } from "../src/project/config";
 
 const temporaryDirectories: string[] = [];
@@ -103,6 +106,27 @@ describe("interactive config", () => {
 
     expect(await loadConfig(root)).toEqual({});
     expect(prompts.cancel).toHaveBeenCalledWith("Configuration unchanged.");
+  });
+
+  it("interactively removes selected duplicate config file", async () => {
+    const root = await project();
+    const nukecacheFile = join(root, "nukecache.config.json");
+    const nkcFile = join(root, "nkc.config.json");
+    await writeFile(nukecacheFile, "{}");
+    await writeFile(nkcFile, "{}");
+
+    // Select nkcFile to remove, confirm deletion
+    prompts.selectValues.push(nkcFile);
+    prompts.confirmValues.push(true);
+
+    await resolveConfigCollision(root, true);
+
+    expect(prompts.log.error).toHaveBeenCalled();
+    expect(prompts.log.step).toHaveBeenCalledWith("Removed nkc.config.json.");
+    expect(prompts.log.success).toHaveBeenCalledWith(
+      "Configuration conflict resolved. Active file: nukecache.config.json",
+    );
+    expect(await loadConfig(root)).toEqual({});
   });
 });
 

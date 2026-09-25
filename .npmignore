@@ -2,5 +2,7 @@ src
 tests
 coverage
 *.config.ts
+*.config.json
+schema.json
 tsconfig.json
 bun.lock

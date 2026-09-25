@@ -81,5 +81,28 @@ describe("config", () => {
     await expect(loadConfig(root)).rejects.toThrow(
       "config.packageManagers must be an array of npm, pnpm, yarn, or bun",
     );
+
+    await writeFile(path, JSON.stringify({ unknownField: "fail" }));
+    await expect(loadConfig(root)).rejects.toThrow(
+      'Unexpected config property: "unknownField"',
+    );
+
+    await writeFile(
+      path,
+      JSON.stringify({ $schema: "https://nukecache.js.org/schema.json" }),
+    );
+    expect(await loadConfig(root)).toMatchObject({
+      $schema: "https://nukecache.js.org/schema.json",
+    });
+  });
+
+  it("throws when multiple config files exist in the same project", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nukecache-config-multi-"));
+    await writeFile(join(root, "nukecache.config.json"), "{}");
+    await writeFile(join(root, "nkc.config.json"), "{}");
+
+    await expect(loadConfig(root)).rejects.toThrow(
+      "Multiple configuration files found: nukecache.config.json, nkc.config.json",
+    );
   });
 });

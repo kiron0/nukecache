@@ -9,9 +9,15 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import { access } from "node:fs/promises";
+import { access, rm } from "node:fs/promises";
+import { basename } from "node:path";
 
-import { configPath, loadConfig, saveConfig } from "../project/config";
+import {
+  configPath,
+  findExistingConfigFiles,
+  loadConfig,
+  saveConfig,
+} from "../project/config";
 import type { NukecacheConfig } from "../types";
 import type { CliArgs } from "./args";
 
@@ -35,10 +41,7 @@ type ConfigKey = (typeof CONFIG_KEYS)[number];
 export interface ConfigCommandResult {
   changed?: { action: "set" | "unset"; key: ConfigKey };
   config: Required<
-    Pick<
-      NukecacheConfig,
-      "ignore" | "include" | "custom" | "packageManagers"
-    >
+    Pick<NukecacheConfig, "ignore" | "include" | "custom" | "packageManagers">
   > &
     Pick<
       NukecacheConfig,
@@ -309,7 +312,11 @@ async function promptConfigValue(
     return select({
       message: "Allow clearing rebuildable and global caches without --force?",
       options: [
-        { value: "true", label: "Enabled", hint: "dangerous / rebuildable allowed" },
+        {
+          value: "true",
+          label: "Enabled",
+          hint: "dangerous / rebuildable allowed",
+        },
         { value: "false", label: "Disabled", hint: "require CLI --force flag" },
       ],
       initialValue: config.force ? "true" : "false",
@@ -319,8 +326,16 @@ async function promptConfigValue(
     return select({
       message: "Default output to JSON format?",
       options: [
-        { value: "true", label: "Enabled", hint: "machine-readable JSON output" },
-        { value: "false", label: "Disabled", hint: "human-readable terminal output" },
+        {
+          value: "true",
+          label: "Enabled",
+          hint: "machine-readable JSON output",
+        },
+        {
+          value: "false",
+          label: "Disabled",
+          hint: "human-readable terminal output",
+        },
       ],
       initialValue: config.json ? "true" : "false",
     });
@@ -555,5 +570,68 @@ async function pathExists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+export async function resolveConfigCollision(
+  root: string,
+  isInteractive: boolean,
+): Promise<void> {
+  const configs = findExistingConfigFiles(root);
+  if (configs.length <= 1) return;
+
+  const names = configs.map((filepath) => basename(filepath));
+  const collisionMessage =
+    `Multiple configuration files found: ${names.join(", ")}.\n` +
+    "Having multiple configuration files causes ambiguous settings across binary commands (nukecache, nkc, ncache).";
+
+  if (!isInteractive) {
+    throw new Error(
+      `${collisionMessage}\nPlease remove duplicate config files and keep only one.`,
+    );
+  }
+
+  log.error(collisionMessage);
+  note(
+    "Multiple configuration files lead to inconsistent cache behavior.\n" +
+      "Select which duplicate file(s) to remove so only one configuration remains.",
+    "Configuration Conflict",
+  );
+
+  while (true) {
+    const current = findExistingConfigFiles(root);
+    if (current.length <= 1) {
+      log.success(
+        `Configuration conflict resolved. Active file: ${basename(current[0] ?? "")}`,
+      );
+      break;
+    }
+
+    const selectedFile = await select({
+      message: "Which configuration file would you like to remove?",
+      options: current.map((filepath) => ({
+        value: filepath,
+        label: basename(filepath),
+        hint: `delete to avoid collision (${basename(filepath)})`,
+      })),
+    });
+
+    if (isCancel(selectedFile)) {
+      cancel("Aborted. Multiple configuration files still exist.");
+      throw new Error("Aborted config resolution.");
+    }
+
+    const confirmed = await confirm({
+      message: `Delete ${basename(selectedFile)}?`,
+      initialValue: true,
+    });
+
+    if (isCancel(confirmed) || !confirmed) {
+      cancel("Aborted. File was not removed.");
+      throw new Error("Aborted config resolution.");
+    }
+
+    await rm(selectedFile, { force: true });
+    log.step(`Removed ${basename(selectedFile)}.`);
   }
 }

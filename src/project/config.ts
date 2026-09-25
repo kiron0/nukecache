@@ -25,6 +25,15 @@ const SAFETY_VALUES = new Set<CacheSafety>([
 ]);
 
 export async function loadConfig(root: string): Promise<NukecacheConfig> {
+  const existing = findExistingConfigFiles(root);
+  if (existing.length > 1) {
+    const names = existing.map((filepath) => basename(filepath));
+    throw new Error(
+      `Multiple configuration files found: ${names.join(", ")}.\n` +
+        "Having multiple configuration files causes ambiguous settings across binary commands (nukecache, nkc, ncache). Please remove duplicate config files.",
+    );
+  }
+
   const path = configPath(root);
   let source: string;
   try {
@@ -51,10 +60,14 @@ export async function saveConfig(
   root: string,
   config: NukecacheConfig,
 ): Promise<string> {
-  validateConfig(config);
+  const payload: NukecacheConfig = {
+    $schema: config.$schema ?? CONFIG_SCHEMA_URL,
+    ...config,
+  };
+  validateConfig(payload);
   const path = configPath(root);
   const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(config, null, 2)}\n`, {
+  await writeFile(temporaryPath, `${JSON.stringify(payload, null, 2)}\n`, {
     mode: 0o600,
   });
   try {
@@ -65,17 +78,51 @@ export async function saveConfig(
   return path;
 }
 
-export function configPath(root: string): string {
+export function findExistingConfigFiles(root: string): string[] {
+  const found: string[] = [];
   for (const filename of CONFIG_FILENAMES) {
     const candidate = resolve(root, filename);
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) found.push(candidate);
   }
+  return found;
+}
+
+export function configPath(root: string): string {
+  const found = findExistingConfigFiles(root);
+  if (found.length > 0) return found[0] as string;
   return resolve(root, CONFIG_FILENAME);
 }
+
+export const CONFIG_SCHEMA_URL = "https://nukecache.js.org/schema.json";
+
+const ALLOWED_CONFIG_KEYS = new Set([
+  "$schema",
+  "defaultScope",
+  "showGlobal",
+  "dryRun",
+  "safe",
+  "force",
+  "json",
+  "packageManagers",
+  "days",
+  "limit",
+  "noUpdateCheck",
+  "ignore",
+  "include",
+  "custom",
+]);
 
 function validateConfig(value: unknown): asserts value is NukecacheConfig {
   if (!isRecord(value)) {
     throw new Error(`${CONFIG_FILENAME} must contain a JSON object`);
+  }
+  for (const key of Object.keys(value)) {
+    if (!ALLOWED_CONFIG_KEYS.has(key)) {
+      throw new Error(`Unexpected config property: "${key}"`);
+    }
+  }
+  if (value.$schema !== undefined && typeof value.$schema !== "string") {
+    throw new Error("config.$schema must be a string");
   }
   validateStringArray(value.ignore, "ignore");
   validateStringArray(value.include, "include");

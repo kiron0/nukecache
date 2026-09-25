@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nukecache.js.org/schema.json",
+  "title": "NukecacheConfig",
+  "description": "Configuration schema for nukecache, nkc, and ncache cache cleanup tool.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL to JSON schema for IDE autocompletion and validation."
+    },
+    "defaultScope": {
+      "type": "string",
+      "enum": ["project", "global", "all"],
+      "default": "project",
+      "description": "Default cache scope inspected and displayed when no scope CLI flag is provided."
+    },
+    "showGlobal": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether global package manager targets should appear in interactive lists by default."
+    },
+    "dryRun": {
+      "type": "boolean",
+      "default": false,
+      "description": "Default to simulation/dry-run mode for cleanup operations in this project."
+    },
+    "safe": {
+      "type": "boolean",
+      "default": false,
+      "description": "Restrict default cleanup operations strictly to safe-tier caches."
+    },
+    "force": {
+      "type": "boolean",
+      "default": false,
+      "description": "Allow clearing rebuildable and global caches without requiring the --force CLI flag."
+    },
+    "json": {
+      "type": "boolean",
+      "default": false,
+      "description": "Default command outputs to structured JSON instead of formatted terminal text."
+    },
+    "packageManagers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["npm", "pnpm", "yarn", "bun"]
+      },
+      "uniqueItems": true,
+      "description": "Explicitly restrict detected global package managers (e.g. ['pnpm'] or ['bun'])."
+    },
+    "days": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 30,
+      "description": "Default age threshold (in days) used by the old command."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10,
+      "description": "Default maximum number of items ranked by the largest command."
+    },
+    "noUpdateCheck": {
+      "type": "boolean",
+      "default": false,
+      "description": "Disable the cached npm registry update check for this repository."
+    },
+    "ignore": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "List of detector IDs, tool names (e.g. 'turbo', 'vite'), or exact relative paths to skip."
+    },
+    "include": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Additional project-relative directories to monitor as cache targets."
+    },
+    "custom": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "paths"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this custom cache definition."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Display name of the custom cache target."
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "description": "Relative paths to cache directories or files."
+          },
+          "safety": {
+            "type": "string",
+            "enum": ["safe", "rebuild", "reinstall", "global", "dangerous"],
+            "default": "safe",
+            "description": "Safety tier of this cache target."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable explanation of what this cache target stores."
+          },
+          "consequences": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Notes or side effects when this cache is cleared."
+          }
+        }
+      },
+      "default": [],
+      "description": "Custom detector definitions for proprietary tooling or internal build systems."
+    }
+  }
+}
