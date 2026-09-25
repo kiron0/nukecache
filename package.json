@@ -1,6 +1,6 @@
 {
   "name": "nukecache",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Detect, inspect, and safely clear development caches from one CLI.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -33,7 +33,7 @@
   "bugs": {
     "url": "https://github.com/kiron0/nukecache/issues"
   },
-  "homepage": "https://github.com/kiron0/nukecache#readme",
+  "homepage": "https://nukecache.js.org",
   "engines": {
     "node": ">=20"
   },

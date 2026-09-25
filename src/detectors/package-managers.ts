@@ -215,7 +215,7 @@ function toCandidate(
     tool: definition.tool,
     description: definition.description,
     consequences: definition.consequences,
-    cleanup: definition.cleanup,
+    ...(inProject ? {} : { cleanup: definition.cleanup }),
   };
 }
 

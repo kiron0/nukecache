@@ -37,13 +37,34 @@ describe("config", () => {
 
     await writeFile(
       path,
-      JSON.stringify({ custom: [{ name: "Tool", paths: [], safety: "nope" }] }),
+      JSON.stringify({
+        custom: [{ name: "Tool", paths: [".cache"], safety: "nope" }],
+      }),
     );
     await expect(loadConfig(root)).rejects.toThrow("safety is invalid");
 
     await writeFile(path, JSON.stringify({ ignore: "vite" }));
     await expect(loadConfig(root)).rejects.toThrow(
       "ignore must be an array of strings",
+    );
+
+    await writeFile(
+      path,
+      JSON.stringify({ custom: [{ id: " ", name: "Tool", paths: [".x"] }] }),
+    );
+    await expect(loadConfig(root)).rejects.toThrow("id must not be empty");
+
+    await writeFile(
+      path,
+      JSON.stringify({ custom: [{ name: "Tool", paths: [] }] }),
+    );
+    await expect(loadConfig(root)).rejects.toThrow(
+      "paths must be an array of strings",
+    );
+
+    await writeFile(path, JSON.stringify({ include: [" "] }));
+    await expect(loadConfig(root)).rejects.toThrow(
+      "include must be an array of strings",
     );
   });
 });

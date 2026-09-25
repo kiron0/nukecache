@@ -197,7 +197,22 @@ function updateCacheDirectory(): string {
 async function readCache(path: string): Promise<UpdateCache> {
   try {
     const value: unknown = JSON.parse(await readFile(path, "utf8"));
-    return typeof value === "object" && value !== null ? value : {};
+    if (typeof value !== "object" || value === null) return {};
+    const record = value as Record<string, unknown>;
+    return {
+      ...(typeof record.checkedAt === "number" &&
+      Number.isFinite(record.checkedAt)
+        ? { checkedAt: record.checkedAt }
+        : {}),
+      ...(typeof record.ignoredVersion === "string" &&
+      parseVersion(record.ignoredVersion)
+        ? { ignoredVersion: record.ignoredVersion }
+        : {}),
+      ...(typeof record.latestVersion === "string" &&
+      parseVersion(record.latestVersion)
+        ? { latestVersion: record.latestVersion }
+        : {}),
+    };
   } catch {
     return {};
   }

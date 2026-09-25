@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { mapWithConcurrency } from "./concurrency";
 
-const FILESYSTEM_CONCURRENCY = 64;
+const FILESYSTEM_CONCURRENCY = 128;
 
 export async function calculateSize(path: string): Promise<number> {
   const details = await lstat(path);

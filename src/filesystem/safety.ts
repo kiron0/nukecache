@@ -83,8 +83,11 @@ export async function assertSafeProjectTarget(
 }
 
 function isProtectedName(name: string): boolean {
+  const normalized = name.toLowerCase();
   return (
-    PROTECTED_NAMES.has(name) || name === ".env" || name.startsWith(".env.")
+    PROTECTED_NAMES.has(normalized) ||
+    normalized === ".env" ||
+    normalized.startsWith(".env.")
   );
 }
 

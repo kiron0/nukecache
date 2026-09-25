@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -68,6 +68,28 @@ describe("update checks", () => {
       if (previousCacheRoot === undefined) delete process.env.XDG_CACHE_HOME;
       else process.env.XDG_CACHE_HOME = previousCacheRoot;
     }
+  });
+
+  it("discards malformed cached fields and refreshes safely", async () => {
+    const cacheDirectory = await temporaryDirectory();
+    await writeFile(
+      join(cacheDirectory, "update.json"),
+      JSON.stringify({
+        checkedAt: "never",
+        ignoredVersion: "not-semver",
+        latestVersion: 999,
+      }),
+    );
+    const fetcher = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ version: "0.4.0" }), { status: 200 }),
+      ),
+    ) as typeof fetch;
+
+    await expect(
+      checkForUpdate("0.3.0", { cacheDirectory, fetcher, now: 5_000 }),
+    ).resolves.toMatchObject({ latestVersion: "0.4.0" });
+    expect(fetcher).toHaveBeenCalledOnce();
   });
 });
 

@@ -90,6 +90,7 @@ describe("package-manager detection", () => {
       scope: "project",
       safety: "rebuild",
     });
+    expect(result.candidates[0]?.cleanup).toBeUndefined();
   });
 
   it("reports unavailable managers without failing detection", async () => {

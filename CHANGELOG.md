@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Add automatic update checks with cached registry results, interactive update choices, release ignoring, and automation opt-outs.
+- Add `largest`, `old`, and `explain` inspection commands with JSON output and cache timestamps.
+- Make cache scans faster with bounded concurrent filesystem traversal, batched Git checks, and lower-overhead root detection.
+- Fix Bun cache detection and cleanup outside package directories, including home-directory scans.
+- Keep package-manager caches global under home-like roots and remove project-local Yarn caches through guarded filesystem cleanup.
+- Add 250+ unit, integration, security, compatibility, argument, output, and semantic-version tests.
+
 ## 0.2.0
 
 - Add explicit global cache inspection and native cleanup for npm, pnpm, Yarn, and Bun.

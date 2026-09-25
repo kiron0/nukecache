@@ -99,8 +99,8 @@ function assertAllowedCleanup(
   cleanup: NativeCleanupCommand,
 ): void {
   if (
-    resolve(cleanup.cwd) !== resolve(root) ||
-    cleanup.command !== target.tool
+    cleanup.command !== target.tool ||
+    (cleanup.command !== "bun" && resolve(cleanup.cwd) !== resolve(root))
   ) {
     throw new Error("Native cleanup command does not match target context");
   }

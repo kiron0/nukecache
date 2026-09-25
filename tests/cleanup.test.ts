@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { executeCleanup } from "../src/cleanup/executor";
 import { createCleanupPlan } from "../src/cleanup/planner";
@@ -177,6 +177,38 @@ describe("cleanup", () => {
     expect(result.failed[0]?.error).toContain("Unsupported native cleanup");
   });
 
+  it("allows Bun cleanup from its package-aware fallback directory", async () => {
+    const root = await project();
+    const fallbackCwd = await mkdtemp(join(tmpdir(), "nukecache-bun-cwd-"));
+    const cache = await mkdtemp(join(tmpdir(), "nukecache-bun-cache-"));
+    const target = fixtureTarget({
+      id: "bun-cache",
+      path: cache,
+      absolutePath: cache,
+      scope: "global",
+      safety: "global",
+      tool: "bun",
+      cleanup: {
+        kind: "command",
+        command: "bun",
+        args: ["pm", "cache", "rm"],
+        cwd: fallbackCwd,
+      },
+    });
+    const runner = vi.fn(() => Promise.resolve(""));
+
+    const result = await executeCleanup(
+      createCleanupPlan(root, [target], { allowGlobal: true }),
+      { commandRunner: runner },
+    );
+
+    expect(result.failed).toEqual([]);
+    expect(runner).toHaveBeenCalledWith("bun", ["pm", "cache", "rm"], {
+      cwd: fallbackCwd,
+      timeout: 600_000,
+    });
+  });
+
   it("removes a symlink itself without touching its destination", async () => {
     const root = await project();
     const outside = await mkdtemp(join(tmpdir(), "nukecache-destination-"));
@@ -217,7 +249,13 @@ describe("cleanup", () => {
     await expect(
       assertSafeProjectTarget(root, join(root, "src")),
     ).rejects.toThrow("Protected project path");
-    for (const name of [".env.test", "bun.lock", "app.sqlite3"]) {
+    for (const name of [
+      ".env.test",
+      ".ENV.LOCAL",
+      "bun.lock",
+      "PACKAGE.JSON",
+      "app.sqlite3",
+    ]) {
       await writeFile(join(root, name), "protected");
       await expect(
         assertSafeProjectTarget(root, join(root, name)),

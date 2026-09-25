@@ -64,6 +64,9 @@ function validateCustomDefinition(value: unknown, index: number): void {
   if (value.id !== undefined && typeof value.id !== "string") {
     throw new Error(`config.custom[${index}].id must be a string`);
   }
+  if (typeof value.id === "string" && value.id.trim() === "") {
+    throw new Error(`config.custom[${index}].id must not be empty`);
+  }
   if (
     value.description !== undefined &&
     typeof value.description !== "string"
@@ -87,7 +90,11 @@ function validateStringArray(
   required = false,
 ): void {
   if (value === undefined && !required) return;
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
+  if (
+    !Array.isArray(value) ||
+    (required && value.length === 0) ||
+    value.some((item) => typeof item !== "string" || item.trim().length === 0)
+  ) {
     throw new Error(`config.${name} must be an array of strings`);
   }
 }
