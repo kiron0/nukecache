@@ -16,7 +16,7 @@ Full documentation and guides available at **[nukecache.js.org](https://nukecach
 npm install -g nukecache
 ```
 
-CLI binaries: `nukecache`, `nkc`, `ncache`. Requires Node.js 20+.
+Commands: `nukecache` (shortcuts: `nkc`, `ncache`). Requires Node.js 20+.
 
 ## Common Commands
 

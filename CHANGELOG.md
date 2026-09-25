@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-- Add `nkc` and `ncache` binary aliases for `nukecache` in `package.json`.
+- Add `nkc` and `ncache` command shortcuts (aliases) for `nukecache` in `package.json`.
 - Add `config` inspection and atomic updates, plus nearby command suggestions with structured CLI errors.
 - Add a complete Clack configuration workflow.
 
