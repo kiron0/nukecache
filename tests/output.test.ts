@@ -9,6 +9,7 @@ import {
   formatPlan,
   formatResult,
   formatTarget,
+  formatWarnings,
 } from "../src/output";
 import type { CacheTarget, CleanupPlan } from "../src/types";
 
@@ -33,9 +34,16 @@ describe("output", () => {
       "safe, tracked",
     );
     expect(formatAge(Date.now() - 2 * 86_400_000)).toBe("2d ago");
+    expect(formatAge(Date.now())).toBe("now");
+    expect(formatAge(Date.now() - 300_000)).toBe("5m ago");
+    expect(formatAge(Date.now() - 7_200_000)).toBe("2h ago");
     expect(formatLargest([target], 1)).toContain("1. Vite cache");
+    expect(formatLargest([], 5)).toBe("No supported development caches found.");
     expect(formatOld([target], 1)).toContain("Age uses cache path timestamps");
     expect(formatOld([], 1)).toContain("No caches unchanged");
+    expect(
+      formatWarnings([{ tool: "npm", message: "command timed out" }]),
+    ).toBe("Warning (npm): command timed out");
   });
 
   it("formats cleanup plans and results", () => {

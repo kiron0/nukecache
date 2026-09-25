@@ -262,6 +262,25 @@ describe("cleanup", () => {
       ).rejects.toThrow("Protected project path");
     }
   });
+
+  it("handles cleanup failure gracefully and reports failed item", async () => {
+    const root = await project();
+    const badTarget: CacheTarget = {
+      ...fixtureTarget({}),
+      id: "unremovable",
+      path: "protected-file",
+      absolutePath: join(root, "protected-file"),
+    };
+    await writeFile(badTarget.absolutePath, "content");
+    // Make target throw on assertSafeProjectTarget by pointing to project root
+    const plan = createCleanupPlan(root, [
+      { ...badTarget, absolutePath: root },
+    ]);
+    const result = await executeCleanup(plan);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]?.id).toBe("unremovable");
+    expect(result.bytesFreed).toBe(0);
+  });
 });
 
 function fixtureTarget(overrides: Partial<CacheTarget>): CacheTarget {

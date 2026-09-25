@@ -112,6 +112,19 @@ describe("project detection", () => {
     );
   });
 
+  it("supports global and all scope options with package manager filters", async () => {
+    const root = await project();
+    const result = await detectCaches({
+      cwd: root,
+      scope: "global",
+      packageManagers: ["pnpm"],
+    });
+
+    expect(result.context.root).toBe(root);
+    expect(result.packageManagers).toEqual(["pnpm"]);
+    expect(result.targets.every((t) => t.scope === "global")).toBe(true);
+  });
+
   it("checks all Git-tracked cache paths in one batch", async () => {
     const root = await project();
     const trackedDirectory = join(root, ".tracked-cache");

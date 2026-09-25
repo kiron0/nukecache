@@ -182,6 +182,44 @@ describe("config command", () => {
       "Multiple configuration files found: nukecache.config.json, nkc.config.json",
     );
   });
+
+  it("rejects invalid config keys and malformed values", async () => {
+    const root = await project();
+    await expect(
+      runConfigCommand(
+        root,
+        parseCliArgs(["config", "set", "invalidKey", "val"]),
+      ),
+    ).rejects.toThrow('Unknown config key: "invalidKey"');
+
+    await expect(
+      runConfigCommand(
+        root,
+        parseCliArgs(["config", "set", "dryRun", "not-a-bool"]),
+      ),
+    ).rejects.toThrow("dryRun must be true or false");
+
+    await expect(
+      runConfigCommand(
+        root,
+        parseCliArgs(["config", "set", "days", "not-a-num"]),
+      ),
+    ).rejects.toThrow("days must be a positive integer");
+
+    await expect(
+      runConfigCommand(
+        root,
+        parseCliArgs(["config", "set", "defaultScope", "invalid-scope"]),
+      ),
+    ).rejects.toThrow("defaultScope must be project, global, or all");
+
+    await expect(
+      runConfigCommand(
+        root,
+        parseCliArgs(["config", "set", "ignore", "invalid-json{"]),
+      ),
+    ).rejects.toThrow("ignore must be valid JSON");
+  });
 });
 
 describe("nearby command errors", () => {

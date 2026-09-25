@@ -98,5 +98,41 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["ls"])).toThrow('Unknown command: "ls"');
     expect(() => parseCliArgs(["cl"])).toThrow('Unknown command: "cl"');
     expect(() => parseCliArgs(["cfg"])).toThrow('Unknown command: "cfg"');
+    expect(() => parseCliArgs(["config", "unknown-action"])).toThrow(
+      "config action",
+    );
+    expect(() => parseCliArgs(["config", "set"])).toThrow(
+      "config set requires a key and value",
+    );
+    expect(() => parseCliArgs(["config", "unset"])).toThrow(
+      "config unset requires a key",
+    );
+    expect(() =>
+      parseCliArgs(["config", "set", "key", "val", "unexpected"]),
+    ).toThrow("Unexpected config argument");
+    expect(() => parseCliArgs(["clean", "--all", "--global"])).toThrow(
+      "--all excludes global caches",
+    );
+    expect(() => parseCliArgs(["clean", "--json"])).toThrow(
+      "clean --json requires --safe --yes or --dry-run",
+    );
+    expect(() => parseCliArgs(["clean", "--cwd"])).toThrow(
+      "Missing value for --cwd",
+    );
+    expect(() => parseCliArgs(["clean", "--limit", "0"])).toThrow(
+      "--limit requires a positive integer",
+    );
+    expect(() => parseCliArgs(["clean", "--days", "abc"])).toThrow(
+      "--days requires a positive integer",
+    );
+    expect(() => parseCliArgs(["explain", "a", "b"])).toThrow(
+      "Unexpected target: b",
+    );
+    expect(() => parseCliArgs(["clean", "clean"])).toThrow(
+      "Unexpected command: clean",
+    );
+    expect(() => parseCliArgs(["npm", "pnpm"])).toThrow(
+      "Unexpected package manager: pnpm",
+    );
   });
 });
