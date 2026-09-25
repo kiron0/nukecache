@@ -1,6 +1,6 @@
 {
   "name": "nukecache",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Detect, inspect, and safely clear development caches from one CLI.",
   "type": "module",
   "main": "./dist/index.cjs",

@@ -6,6 +6,10 @@
 - Add JSON Schema hosted at `https://nukecache.js.org/schema.json` with strict validation.
 - Detect multiple config file collisions, providing interactive deletion options to avoid ambiguous behavior.
 - Expand project configuration with `defaultScope`, `dryRun`, `safe`, `force`, `json`, `packageManagers`, `days`, `limit`, and `noUpdateCheck` options.
+- Add `--check-update` CLI option and `check-update` command with 60s cooldown rate limiting.
+- Add rich project overview header (`formatProjectSummary`) before interactive cache selection.
+- Add cache safety hints directly in interactive multiselect options.
+- Standardize friendly exit thanks message on all successful commands, cancellations, and errors.
 - Shorten update check interval to 6 hours for faster release discovery.
 
 ## 0.4.0
