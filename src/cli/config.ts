@@ -13,6 +13,7 @@ import { access, rm } from "node:fs/promises";
 import { basename } from "node:path";
 
 import {
+  configCollisionMessage,
   configPath,
   findExistingConfigFiles,
   loadConfig,
@@ -196,12 +197,9 @@ export async function runInteractiveConfig(root: string): Promise<void> {
   }
 }
 
-export function formatConfig(result: ConfigCommandResult): string {
+function renderConfigLines(result: ConfigCommandResult): string[] {
   const { config } = result;
   const lines = [
-    "nukecache configuration",
-    "",
-    `File          ${result.path}`,
     `Status        ${result.exists ? "configured" : "defaults"}`,
     `Scope         ${config.defaultScope ?? "project"}`,
     `Show global   ${String(config.showGlobal ?? false)}`,
@@ -217,7 +215,6 @@ export function formatConfig(result: ConfigCommandResult): string {
     `Include       ${formatValues(config.include)}`,
     `Custom        ${config.custom.length} definition${config.custom.length === 1 ? "" : "s"}`,
   ];
-
   if (config.custom.length > 0) {
     lines.push("");
     for (const definition of config.custom) {
@@ -226,6 +223,16 @@ export function formatConfig(result: ConfigCommandResult): string {
       );
     }
   }
+  return lines;
+}
+
+export function formatConfig(result: ConfigCommandResult): string {
+  const lines = [
+    "nukecache configuration",
+    "",
+    `File          ${result.path}`,
+    ...renderConfigLines(result),
+  ];
 
   if (result.changed) {
     lines.unshift(
@@ -249,29 +256,23 @@ export function formatConfig(result: ConfigCommandResult): string {
 }
 
 function formatConfigSummary(result: ConfigCommandResult): string {
-  const { config } = result;
-  const lines = [
-    `Status        ${result.exists ? "configured" : "defaults"}`,
-    `Scope         ${config.defaultScope ?? "project"}`,
-    `Show global   ${String(config.showGlobal ?? false)}`,
-    `Dry run       ${String(config.dryRun ?? false)}`,
-    `Safe only     ${String(config.safe ?? false)}`,
-    `Force         ${String(config.force ?? false)}`,
-    `JSON output   ${String(config.json ?? false)}`,
-    `Pkg managers  ${formatValues(config.packageManagers)}`,
-    `Days          ${String(config.days ?? 30)}`,
-    `Limit         ${String(config.limit ?? 10)}`,
-    `Update check  ${config.noUpdateCheck ? "disabled" : "enabled"}`,
-    `Ignore        ${formatValues(config.ignore)}`,
-    `Include       ${formatValues(config.include)}`,
-    `Custom        ${config.custom.length} definition${config.custom.length === 1 ? "" : "s"}`,
-  ];
-  for (const definition of config.custom) {
-    lines.push(
-      `  ${definition.name} · ${definition.paths.join(", ")} · ${definition.safety ?? "safe"}`,
-    );
-  }
-  return lines.join("\n");
+  return renderConfigLines(result).join("\n");
+}
+
+function promptBoolean(
+  message: string,
+  initialValue: boolean | undefined,
+  enabledHint = "enabled",
+  disabledHint = "disabled",
+) {
+  return select({
+    message,
+    options: [
+      { value: "true", label: "Enabled", hint: enabledHint },
+      { value: "false", label: "Disabled", hint: disabledHint },
+    ],
+    initialValue: initialValue ? "true" : "false",
+  });
 }
 
 async function promptConfigValue(
@@ -279,66 +280,44 @@ async function promptConfigValue(
   config: ConfigCommandResult["config"],
 ): Promise<Awaited<ReturnType<typeof text>>> {
   if (key === "showGlobal") {
-    return select({
-      message: "Show global package-manager caches by default?",
-      options: [
-        { value: "true", label: "Enabled", hint: "project and global caches" },
-        { value: "false", label: "Disabled", hint: "project caches only" },
-      ],
-      initialValue: config.showGlobal ? "true" : "false",
-    });
+    return promptBoolean(
+      "Show global package-manager caches by default?",
+      config.showGlobal,
+      "project and global caches",
+      "project caches only",
+    );
   }
   if (key === "dryRun") {
-    return select({
-      message: "Default to dry-run mode (preview without deleting)?",
-      options: [
-        { value: "true", label: "Enabled", hint: "always simulate cleanup" },
-        { value: "false", label: "Disabled", hint: "normal cleanup" },
-      ],
-      initialValue: config.dryRun ? "true" : "false",
-    });
+    return promptBoolean(
+      "Default to dry-run mode (preview without deleting)?",
+      config.dryRun,
+      "always simulate cleanup",
+      "normal cleanup",
+    );
   }
   if (key === "safe") {
-    return select({
-      message: "Restrict default cleanup to safe targets?",
-      options: [
-        { value: "true", label: "Enabled", hint: "skip rebuildable targets" },
-        { value: "false", label: "Disabled", hint: "normal selection" },
-      ],
-      initialValue: config.safe ? "true" : "false",
-    });
+    return promptBoolean(
+      "Restrict default cleanup to safe targets?",
+      config.safe,
+      "skip rebuildable targets",
+      "normal selection",
+    );
   }
   if (key === "force") {
-    return select({
-      message: "Allow clearing rebuildable and global caches without --force?",
-      options: [
-        {
-          value: "true",
-          label: "Enabled",
-          hint: "dangerous / rebuildable allowed",
-        },
-        { value: "false", label: "Disabled", hint: "require CLI --force flag" },
-      ],
-      initialValue: config.force ? "true" : "false",
-    });
+    return promptBoolean(
+      "Allow clearing rebuildable and global caches without --force?",
+      config.force,
+      "dangerous / rebuildable allowed",
+      "require CLI --force flag",
+    );
   }
   if (key === "json") {
-    return select({
-      message: "Default output to JSON format?",
-      options: [
-        {
-          value: "true",
-          label: "Enabled",
-          hint: "machine-readable JSON output",
-        },
-        {
-          value: "false",
-          label: "Disabled",
-          hint: "human-readable terminal output",
-        },
-      ],
-      initialValue: config.json ? "true" : "false",
-    });
+    return promptBoolean(
+      "Default output to JSON format?",
+      config.json,
+      "machine-readable JSON output",
+      "human-readable terminal output",
+    );
   }
   if (key === "packageManagers") {
     const value = await text({
@@ -490,15 +469,11 @@ function configHint(
     case "defaultScope":
       return config.defaultScope ?? "project";
     case "showGlobal":
-      return config.showGlobal ? "enabled" : "disabled";
     case "dryRun":
-      return config.dryRun ? "enabled" : "disabled";
     case "safe":
-      return config.safe ? "enabled" : "disabled";
     case "force":
-      return config.force ? "enabled" : "disabled";
     case "json":
-      return config.json ? "enabled" : "disabled";
+      return config[key] ? "enabled" : "disabled";
     case "packageManagers":
       return `${config.packageManagers.length} managers`;
     case "days":
@@ -581,9 +556,7 @@ export async function resolveConfigCollision(
   if (configs.length <= 1) return;
 
   const names = configs.map((filepath) => basename(filepath));
-  const collisionMessage =
-    `Multiple configuration files found: ${names.join(", ")}.\n` +
-    "Having multiple configuration files causes ambiguous settings across binary commands (nukecache, nkc, ncache).";
+  const collisionMessage = configCollisionMessage(names);
 
   if (!isInteractive) {
     throw new Error(

@@ -118,8 +118,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
 
     switch (arg) {
       case "--all":
-        args.all = true;
-        args.safe = true;
+        args.all = args.safe = true;
         break;
       case "--cwd":
         args.cwd = requireValue(argv, ++index, arg);

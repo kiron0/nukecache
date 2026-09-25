@@ -358,14 +358,11 @@ function toTargetJson(target: CacheTarget) {
 }
 
 function findTargets(targets: CacheTarget[], query: string): CacheTarget[] {
-  const normalized = query.toLowerCase();
-  return targets.filter(
-    (target) =>
-      target.id.toLowerCase() === normalized ||
-      target.tool.toLowerCase() === normalized ||
-      target.name.toLowerCase() === normalized ||
-      target.path.toLowerCase() === normalized ||
-      target.absolutePath.toLowerCase() === normalized,
+  const q = query.toLowerCase();
+  return targets.filter((t) =>
+    [t.id, t.tool, t.name, t.path, t.absolutePath].some(
+      (v) => v.toLowerCase() === q,
+    ),
   );
 }
 
