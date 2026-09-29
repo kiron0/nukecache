@@ -34,7 +34,11 @@ import {
 import { parseSize, selectReclaimCandidates } from "../reclaim";
 import { sweep } from "../sweep";
 import { detectOrphanedCaches } from "../orphaned";
-import { isDockerAvailable, getDockerDiskUsage, pruneDockerBuildCache } from "../docker";
+import {
+  isDockerAvailable,
+  getDockerDiskUsage,
+  pruneDockerBuildCache,
+} from "../docker";
 import type { CacheTarget, CleanupPlan, DetectionResult } from "../types";
 import {
   checkForUpdate,
@@ -672,18 +676,13 @@ Options:
   --version, -v                     Show version`);
 }
 
-
-async function handleSweep(
-  args: CliArgs,
-  _version: string,
-): Promise<void> {
+async function handleSweep(args: CliArgs, _version: string): Promise<void> {
   const baseDir = args.sweepDir ?? process.cwd();
   const days = args.days ?? args.minAge;
   const isInteractive =
     !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-  const progress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
   progress?.start(`Scanning ${baseDir}`);
 
   const result = await sweep(baseDir, {
@@ -802,7 +801,8 @@ async function handleSweep(
   }
 
   const lines = ["Sweep complete", ""];
-  if (removed.length > 0) lines.push("Removed:", ...removed.map((p) => `  ${p}`));
+  if (removed.length > 0)
+    lines.push("Removed:", ...removed.map((p) => `  ${p}`));
   if (failed.length > 0)
     lines.push("", "Failed:", ...failed.map((f) => `  ${f.path}  ${f.error}`));
   lines.push("", `Freed: ${formatBytes(totalFreed)}`);
@@ -821,8 +821,7 @@ async function handleReclaim(
   const isInteractive =
     !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-  const progress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
   progress?.start("Detecting caches");
 
   const detection = await detectCaches({
@@ -903,8 +902,7 @@ async function handleOrphaned(
   context: Awaited<ReturnType<typeof createProjectContext>>,
   config: Awaited<ReturnType<typeof loadConfig>>,
 ): Promise<void> {
-  const progress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
   progress?.start("Detecting caches");
 
   const detection = await detectCaches({
@@ -914,7 +912,10 @@ async function handleOrphaned(
   });
   progress?.stop(`Scanned ${detection.context.root}`);
 
-  const orphaned = await detectOrphanedCaches(detection.targets, detection.context);
+  const orphaned = await detectOrphanedCaches(
+    detection.targets,
+    detection.context,
+  );
 
   if (args.json) {
     console.log(
@@ -969,7 +970,11 @@ async function handleOrphaned(
   const plan = createCleanupPlan(
     context.root,
     orphaned.map(({ target }) => target),
-    { selectedIds: orphaned.map(({ target }) => target.id), safeOnly: false, allowGlobal: false },
+    {
+      selectedIds: orphaned.map(({ target }) => target.id),
+      safeOnly: false,
+      allowGlobal: false,
+    },
   );
 
   const cleanupProgress =
@@ -991,8 +996,7 @@ async function handleDockerList(args: CliArgs): Promise<void> {
     return;
   }
 
-  const progress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
   progress?.start("Querying Docker");
 
   const usage = await getDockerDiskUsage();
@@ -1008,7 +1012,9 @@ async function handleDockerList(args: CliArgs): Promise<void> {
     return;
   }
 
-  console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+  console.log(
+    formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable),
+  );
   printThanks();
 }
 
@@ -1022,7 +1028,9 @@ async function handleDockerClean(args: CliArgs): Promise<void> {
 
   if (args.dryRun) {
     const usage = await getDockerDiskUsage();
-    console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+    console.log(
+      formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable),
+    );
     console.log("\nDry run — no build cache pruned.");
     printThanks();
     return;
@@ -1038,25 +1046,22 @@ async function handleDockerClean(args: CliArgs): Promise<void> {
     }
     intro("nukecache clean --docker");
     const usage = await getDockerDiskUsage();
-    console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+    console.log(
+      formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable),
+    );
     console.log("");
     const approved = await confirm({
       message: "Prune all Docker build cache? (docker builder prune --force)",
       initialValue: false,
     });
     if (isCancel(approved) || !approved) {
-      cancel(
-        approved === false
-          ? "Cleanup skipped."
-          : "Cancelled.",
-      );
+      cancel(approved === false ? "Cleanup skipped." : "Cancelled.");
       printThanks();
       return;
     }
   }
 
-  const progress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
   progress?.start("Running docker builder prune");
 
   const result = await pruneDockerBuildCache(true);
@@ -1067,7 +1072,9 @@ async function handleDockerClean(args: CliArgs): Promise<void> {
     return;
   }
 
-  console.log(`Docker build cache pruned. Freed: ${formatBytes(result.reclaimedBytes)}`);
+  console.log(
+    `Docker build cache pruned. Freed: ${formatBytes(result.reclaimedBytes)}`,
+  );
   printThanks();
 }
 

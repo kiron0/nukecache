@@ -77,8 +77,7 @@ export async function sweep(
   );
 
   projects.sort(
-    (a, b) =>
-      totalSize(b.detection.targets) - totalSize(a.detection.targets),
+    (a, b) => totalSize(b.detection.targets) - totalSize(a.detection.targets),
   );
 
   const cutoff =
@@ -120,7 +119,8 @@ async function findProjectRoots(dir: string, depth: number): Promise<string[]> {
   }
 
   const subdirs = entries.filter(
-    (e) => e.isDirectory() && !PRUNE_DIRS.has(e.name) && !e.name.startsWith("."),
+    (e) =>
+      e.isDirectory() && !PRUNE_DIRS.has(e.name) && !e.name.startsWith("."),
   );
 
   const nested = await Promise.all(

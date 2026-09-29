@@ -17,7 +17,9 @@ describe("sweep command", () => {
   });
 
   it("parses sweep with --days", () => {
-    expect(parseCliArgs(["sweep", "/home/user/Code", "--days", "30"])).toMatchObject({
+    expect(
+      parseCliArgs(["sweep", "/home/user/Code", "--days", "30"]),
+    ).toMatchObject({
       command: "sweep",
       sweepDir: "/home/user/Code",
       days: 30,
@@ -75,9 +77,7 @@ describe("reclaim command", () => {
   });
 
   it("parses reclaim with --yes --safe", () => {
-    expect(
-      parseCliArgs(["reclaim", "1gb", "--yes", "--safe"]),
-    ).toMatchObject({
+    expect(parseCliArgs(["reclaim", "1gb", "--yes", "--safe"])).toMatchObject({
       command: "reclaim",
       reclaimTarget: "1gb",
       yes: true,

@@ -15,7 +15,6 @@
 - Add `orphaned` command and `--orphaned` flag: detect caches whose tools, dependencies, or configuration files no longer exist in the project; preview with `--dry-run` or clear interactively.
 - Add Docker build cache support (`nkc list --docker`, `nkc clean --docker`): inspect build cache size with `docker system df` and prune safely with `docker builder prune`.
 
-
 ## 0.5.0
 
 - Support configuration aliases (`nkc.config.json`, `ncache.config.json`) alongside `nukecache.config.json`.

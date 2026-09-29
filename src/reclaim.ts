@@ -28,9 +28,7 @@ export function selectReclaimCandidates(
 
   scored.sort(
     (a, b) =>
-      a.safePriority - b.safePriority ||
-      a.age - b.age ||
-      b.size - a.size,
+      a.safePriority - b.safePriority || a.age - b.age || b.size - a.size,
   );
 
   const selected: CacheTarget[] = [];

@@ -4,9 +4,9 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 export interface DockerDiskUsage {
-  buildCacheSize: number;       // bytes, total
+  buildCacheSize: number; // bytes, total
   buildCacheReclaimable: number; // bytes, reclaimable
-  raw: string;                  // raw docker system df output
+  raw: string; // raw docker system df output
 }
 
 export interface DockerPruneResult {
@@ -42,7 +42,9 @@ export async function getDockerDiskUsage(): Promise<DockerDiskUsage> {
 /**
  * Runs `docker builder prune --force` and returns reclaimed bytes.
  */
-export async function pruneDockerBuildCache(force = true): Promise<DockerPruneResult> {
+export async function pruneDockerBuildCache(
+  force = true,
+): Promise<DockerPruneResult> {
   const args = ["builder", "prune"];
   if (force) args.push("--force");
 

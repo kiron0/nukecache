@@ -17,7 +17,8 @@ describe("parseSize", () => {
     expect(parseSize("500MB")).toBe(500 * 1024 ** 2);
   });
   it("treats bare number as bytes", () => expect(parseSize("1024")).toBe(1024));
-  it("trims whitespace", () => expect(parseSize(" 100mb ")).toBe(100 * 1024 ** 2));
+  it("trims whitespace", () =>
+    expect(parseSize(" 100mb ")).toBe(100 * 1024 ** 2));
   it("throws on invalid format", () => {
     expect(() => parseSize("fivegb")).toThrow("Invalid size");
     expect(() => parseSize("")).toThrow("Invalid size");
@@ -25,7 +26,9 @@ describe("parseSize", () => {
   });
 });
 
-function makeTarget(overrides: Partial<CacheTarget> & Pick<CacheTarget, "id" | "size" | "safety">): CacheTarget {
+function makeTarget(
+  overrides: Partial<CacheTarget> & Pick<CacheTarget, "id" | "size" | "safety">,
+): CacheTarget {
   return {
     name: overrides.id,
     path: overrides.id,
@@ -49,8 +52,16 @@ describe("selectReclaimCandidates", () => {
   });
 
   it("selects safe targets first", () => {
-    const safe = makeTarget({ id: "safe", size: 100 * 1024 ** 2, safety: "safe" });
-    const rebuild = makeTarget({ id: "rebuild", size: 200 * 1024 ** 2, safety: "rebuild" });
+    const safe = makeTarget({
+      id: "safe",
+      size: 100 * 1024 ** 2,
+      safety: "safe",
+    });
+    const rebuild = makeTarget({
+      id: "rebuild",
+      size: 200 * 1024 ** 2,
+      safety: "rebuild",
+    });
     const result = selectReclaimCandidates([rebuild, safe], 50 * 1024 ** 2);
     expect(result.map((t) => t.id)).toEqual(["safe"]);
   });
@@ -71,23 +82,48 @@ describe("selectReclaimCandidates", () => {
   });
 
   it("excludes git-tracked targets", () => {
-    const tracked = makeTarget({ id: "tracked", size: 1024 ** 3, safety: "safe", trackedByGit: true });
+    const tracked = makeTarget({
+      id: "tracked",
+      size: 1024 ** 3,
+      safety: "safe",
+      trackedByGit: true,
+    });
     expect(selectReclaimCandidates([tracked], 1024 ** 2)).toEqual([]);
   });
 
   it("excludes symlinks", () => {
-    const sym = makeTarget({ id: "sym", size: 1024 ** 3, safety: "safe", symlink: true });
+    const sym = makeTarget({
+      id: "sym",
+      size: 1024 ** 3,
+      safety: "safe",
+      symlink: true,
+    });
     expect(selectReclaimCandidates([sym], 1024 ** 2)).toEqual([]);
   });
 
   it("excludes global scope", () => {
-    const global = makeTarget({ id: "global", size: 1024 ** 3, safety: "safe", scope: "global" });
+    const global = makeTarget({
+      id: "global",
+      size: 1024 ** 3,
+      safety: "safe",
+      scope: "global",
+    });
     expect(selectReclaimCandidates([global], 1024 ** 2)).toEqual([]);
   });
 
   it("prefers older targets over newer ones", () => {
-    const recent = makeTarget({ id: "recent", size: 100 * 1024 ** 2, safety: "safe", modifiedAt: Date.now() - 1_000 });
-    const old = makeTarget({ id: "old", size: 100 * 1024 ** 2, safety: "safe", modifiedAt: Date.now() - 10_000_000 });
+    const recent = makeTarget({
+      id: "recent",
+      size: 100 * 1024 ** 2,
+      safety: "safe",
+      modifiedAt: Date.now() - 1_000,
+    });
+    const old = makeTarget({
+      id: "old",
+      size: 100 * 1024 ** 2,
+      safety: "safe",
+      modifiedAt: Date.now() - 10_000_000,
+    });
     const result = selectReclaimCandidates([recent, old], 100 * 1024 ** 2);
     expect(result[0]?.id).toBe("old");
   });

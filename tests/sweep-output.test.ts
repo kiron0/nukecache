@@ -1,12 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  formatReclaimPlan,
-  formatSweepTable,
-} from "../src/output";
+import { formatReclaimPlan, formatSweepTable } from "../src/output";
 import type { CacheTarget } from "../src/types";
 
-function makeTarget(overrides: Partial<CacheTarget> & Pick<CacheTarget, "id" | "size">): CacheTarget {
+function makeTarget(
+  overrides: Partial<CacheTarget> & Pick<CacheTarget, "id" | "size">,
+): CacheTarget {
   return {
     name: overrides.id ?? "cache",
     path: overrides.path ?? `.${overrides.id}`,
@@ -33,20 +32,29 @@ describe("formatSweepTable", () => {
   });
 
   it("includes base dir in header", () => {
-    const t = { ...makeTarget({ id: "next", size: 1024 * 1024 * 500 }), projectRoot: "/home/user/Code/app" };
+    const t = {
+      ...makeTarget({ id: "next", size: 1024 * 1024 * 500 }),
+      projectRoot: "/home/user/Code/app",
+    };
     const out = formatSweepTable([t], "/home/user/Code", t.size);
     expect(out).toContain("Sweeping /home/user/Code");
   });
 
   it("shows total reclaimable", () => {
-    const t = { ...makeTarget({ id: "vite", size: 200 * 1024 * 1024 }), projectRoot: "/home/user/Code/site" };
+    const t = {
+      ...makeTarget({ id: "vite", size: 200 * 1024 * 1024 }),
+      projectRoot: "/home/user/Code/site",
+    };
     const out = formatSweepTable([t], "/home/user/Code", t.size);
     expect(out).toContain("Total reclaimable:");
     expect(out).toContain("200.0 MB");
   });
 
   it("renders relative project path", () => {
-    const t = { ...makeTarget({ id: "turbo", size: 100 * 1024 * 1024 }), projectRoot: "/Code/old-dashboard" };
+    const t = {
+      ...makeTarget({ id: "turbo", size: 100 * 1024 * 1024 }),
+      projectRoot: "/Code/old-dashboard",
+    };
     const out = formatSweepTable([t], "/Code", t.size);
     expect(out).toContain("old-dashboard");
   });

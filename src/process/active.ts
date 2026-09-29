@@ -30,7 +30,9 @@ export interface ActiveProcess {
  * Returns a map of tool name → active process for any dev tools currently
  * running on the system. Empty map when listing processes fails.
  */
-export async function getActiveToolProcesses(): Promise<Map<string, ActiveProcess>> {
+export async function getActiveToolProcesses(): Promise<
+  Map<string, ActiveProcess>
+> {
   const active = new Map<string, ActiveProcess>();
   let lines: string[];
   try {

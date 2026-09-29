@@ -259,7 +259,11 @@ export function parseCliArgs(argv: string[]): CliArgs {
       throw new Error("config unset requires a key");
     }
   }
-  if (args.command !== "old" && args.command !== "sweep" && args.days !== undefined) {
+  if (
+    args.command !== "old" &&
+    args.command !== "sweep" &&
+    args.days !== undefined
+  ) {
     throw new Error("--days requires the old or sweep command");
   }
   if (args.command !== "largest" && args.limit !== undefined) {

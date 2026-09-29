@@ -36,7 +36,12 @@ const ORPHAN_RULES: Array<{
   {
     tool: "jest",
     deps: ["jest", "@jest/core"],
-    configs: ["jest.config.js", "jest.config.mjs", "jest.config.ts", "jest.config.json"],
+    configs: [
+      "jest.config.js",
+      "jest.config.mjs",
+      "jest.config.ts",
+      "jest.config.json",
+    ],
   },
   {
     tool: "vitest",
@@ -46,7 +51,11 @@ const ORPHAN_RULES: Array<{
   {
     tool: "playwright",
     deps: ["@playwright/test", "playwright"],
-    configs: ["playwright.config.js", "playwright.config.mjs", "playwright.config.ts"],
+    configs: [
+      "playwright.config.js",
+      "playwright.config.mjs",
+      "playwright.config.ts",
+    ],
   },
   {
     tool: "cypress",

@@ -203,19 +203,13 @@ export function formatSweepTable(
   const divider = "-".repeat(header.length);
 
   const rows = entries.map((t) => {
-    const proj = truncate(
-      relative(baseDir, t.projectRoot) || ".",
-      COL_PROJECT,
-    );
+    const proj = truncate(relative(baseDir, t.projectRoot) || ".", COL_PROJECT);
     const cache = truncate(t.path, COL_CACHE);
     const size = formatBytes(t.size).padEnd(COL_SIZE);
     const age = formatAge(t.modifiedAt);
-    return [
-      proj.padEnd(COL_PROJECT),
-      cache.padEnd(COL_CACHE),
-      size,
-      age,
-    ].join("  ");
+    return [proj.padEnd(COL_PROJECT), cache.padEnd(COL_CACHE), size, age].join(
+      "  ",
+    );
   });
 
   return [
@@ -330,4 +324,3 @@ export function formatDockerUsage(
   ];
   return lines.join("\n");
 }
-
