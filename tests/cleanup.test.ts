@@ -12,6 +12,8 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+const isWindows = process.platform === "win32";
+
 import { executeCleanup } from "../src/cleanup/executor";
 import { createCleanupPlan } from "../src/cleanup/planner";
 import { detectCaches } from "../src/detect";
@@ -268,36 +270,44 @@ describe("cleanup", () => {
     expect(result.failed[0]?.error).toContain("does not match target context");
   });
 
-  it("removes a symlink itself without touching its destination", async () => {
-    const root = await project();
-    const outside = await mkdtemp(join(tmpdir(), "nukecache-destination-"));
-    await writeFile(join(outside, "valuable.txt"), "keep");
-    const link = join(root, ".custom-cache");
-    await symlink(outside, link);
+  it.skipIf(isWindows)(
+    "removes a symlink itself without touching its destination",
+    async () => {
+      const root = await project();
+      const outside = await mkdtemp(join(tmpdir(), "nukecache-destination-"));
+      await writeFile(join(outside, "valuable.txt"), "keep");
+      const link = join(root, ".custom-cache");
+      await symlink(outside, link);
 
-    const detection = await detectCaches({
-      cwd: root,
-      config: { include: [".custom-cache"] },
-    });
-    const result = await executeCleanup(
-      createCleanupPlan(root, detection.targets),
-    );
+      const detection = await detectCaches({
+        cwd: root,
+        config: { include: [".custom-cache"] },
+      });
+      const result = await executeCleanup(
+        createCleanupPlan(root, detection.targets),
+      );
 
-    expect(result.removed).toHaveLength(1);
-    expect(await readFile(join(outside, "valuable.txt"), "utf8")).toBe("keep");
-    await expect(lstat(link)).rejects.toMatchObject({ code: "ENOENT" });
-  });
+      expect(result.removed).toHaveLength(1);
+      expect(await readFile(join(outside, "valuable.txt"), "utf8")).toBe(
+        "keep",
+      );
+      await expect(lstat(link)).rejects.toMatchObject({ code: "ENOENT" });
+    },
+  );
 
-  it("blocks targets reached through a symlinked parent", async () => {
-    const root = await project();
-    const outside = await mkdtemp(join(tmpdir(), "nukecache-parent-link-"));
-    await mkdir(join(outside, "cache"));
-    await symlink(outside, join(root, "linked"));
+  it.skipIf(isWindows)(
+    "blocks targets reached through a symlinked parent",
+    async () => {
+      const root = await project();
+      const outside = await mkdtemp(join(tmpdir(), "nukecache-parent-link-"));
+      await mkdir(join(outside, "cache"));
+      await symlink(outside, join(root, "linked"));
 
-    await expect(
-      assertSafeProjectTarget(root, join(root, "linked", "cache")),
-    ).rejects.toThrow("outside project boundary");
-  });
+      await expect(
+        assertSafeProjectTarget(root, join(root, "linked", "cache")),
+      ).rejects.toThrow("outside project boundary");
+    },
+  );
 
   it("blocks source and project-root deletion", async () => {
     const root = await project();
