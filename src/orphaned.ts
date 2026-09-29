@@ -3,15 +3,6 @@ import { join } from "node:path";
 
 import type { CacheTarget, ProjectContext } from "./types";
 
-/**
- * Tool-to-detection rules: a tool's cache is "orphaned" when none of the
- * listed signals are present in the project.
- *
- * signals:
- *   deps      — package.json dependency name substrings (devDeps + deps)
- *   configs   — config file paths relative to project root
- *   binaries  — script names in package.json "scripts" values
- */
 const ORPHAN_RULES: Array<{
   tool: string;
   deps?: string[];
@@ -98,10 +89,6 @@ export interface OrphanedTarget {
   reason: string;
 }
 
-/**
- * Given a list of detected cache targets and the project context, returns
- * targets whose owning tool/package is no longer present in the project.
- */
 export async function detectOrphanedCaches(
   targets: CacheTarget[],
   context: ProjectContext,
@@ -121,7 +108,7 @@ export async function detectOrphanedCaches(
   for (const target of targets) {
     if (target.scope !== "project") continue;
     const rule = ORPHAN_RULES.find((r) => r.tool === target.tool);
-    if (!rule) continue; // no rule = cannot determine orphaned status
+    if (!rule) continue;
 
     const depPresent =
       rule.deps !== undefined &&

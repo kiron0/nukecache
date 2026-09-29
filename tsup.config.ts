@@ -10,6 +10,7 @@ export default defineConfig([
     platform: "node",
     target: "node20",
     treeshake: true,
+    splitting: false,
     banner: { js: "#!/usr/bin/env node" },
   },
 ]);

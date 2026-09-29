@@ -176,10 +176,6 @@ export function printThanks(): void {
   console.log(THANKS_MESSAGE);
 }
 
-// ---------------------------------------------------------------------------
-// Sweep formatter
-// ---------------------------------------------------------------------------
-
 export function formatSweepTable(
   entries: Array<CacheTarget & { projectRoot: string }>,
   baseDir: string,
@@ -223,10 +219,6 @@ export function formatSweepTable(
   ].join("\n");
 }
 
-// ---------------------------------------------------------------------------
-// Reclaim formatter
-// ---------------------------------------------------------------------------
-
 export function formatReclaimPlan(
   candidates: CacheTarget[],
   targetBytes: number,
@@ -269,10 +261,6 @@ function truncate(value: string, max: number): string {
   return `\u2026${value.slice(-(max - 1))}`;
 }
 
-// ---------------------------------------------------------------------------
-// Orphaned formatter
-// ---------------------------------------------------------------------------
-
 export function formatOrphaned(
   orphaned: Array<{ target: CacheTarget; reason: string }>,
 ): string {
@@ -307,10 +295,6 @@ export function formatOrphaned(
     `Total: ${formatBytes(total)}`,
   ].join("\n");
 }
-
-// ---------------------------------------------------------------------------
-// Docker formatter
-// ---------------------------------------------------------------------------
 
 export function formatDockerUsage(
   buildCacheSize: number,

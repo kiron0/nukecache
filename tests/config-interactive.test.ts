@@ -122,7 +122,6 @@ describe("interactive config", () => {
     await writeFile(nukecacheFile, "{}");
     await writeFile(nkcFile, "{}");
 
-    // Select nkcFile to remove, confirm deletion
     prompts.selectValues.push(nkcFile);
     prompts.confirmValues.push(true);
 

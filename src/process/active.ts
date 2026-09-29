@@ -3,10 +3,6 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-/**
- * Process names that actively use developer cache directories.
- * Maps a partial command/process name to the cache tool it locks.
- */
 const ACTIVE_TOOL_PATTERNS: Array<{ pattern: RegExp; tool: string }> = [
   { pattern: /next(\s+dev|\s+start|\.js)/i, tool: "next" },
   { pattern: /vite/i, tool: "vite" },
@@ -26,10 +22,6 @@ export interface ActiveProcess {
   tool: string;
 }
 
-/**
- * Returns a map of tool name → active process for any dev tools currently
- * running on the system. Empty map when listing processes fails.
- */
 export async function getActiveToolProcesses(): Promise<
   Map<string, ActiveProcess>
 > {
@@ -38,7 +30,6 @@ export async function getActiveToolProcesses(): Promise<
   try {
     lines = await listProcesses();
   } catch {
-    // Cannot enumerate processes — skip active-cache protection gracefully.
     return active;
   }
 
@@ -60,18 +51,16 @@ export async function getActiveToolProcesses(): Promise<
 
 async function listProcesses(): Promise<string[]> {
   if (process.platform === "win32") {
-    // WMIC: PID and CommandLine
     const { stdout } = await execFileAsync(
       "wmic",
       ["process", "get", "ProcessId,CommandLine", "/format:csv"],
       { encoding: "utf8", timeout: 5_000, windowsHide: true, shell: true },
     );
-    return stdout.split("\n").slice(2); // skip header rows
+    return stdout.split("\n").slice(2);
   }
-  // POSIX: ps -eo pid,command
   const { stdout } = await execFileAsync("ps", ["-eo", "pid,command"], {
     encoding: "utf8",
     timeout: 5_000,
   });
-  return stdout.split("\n").slice(1); // skip header
+  return stdout.split("\n").slice(1);
 }

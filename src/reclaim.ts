@@ -1,11 +1,5 @@
 import type { CacheTarget } from "./types";
 
-/**
- * Priority order for reclaim candidate selection:
- *   1. safe scope=project
- *   2. oldest modified (ascending)
- *   3. largest size (descending)
- */
 export function selectReclaimCandidates(
   targets: CacheTarget[],
   targetBytes: number,
@@ -18,11 +12,10 @@ export function selectReclaimCandidates(
       (t.safety === "safe" || t.safety === "rebuild"),
   );
 
-  // Score: safe first, then oldest, then largest.
   const scored = eligible.map((t) => ({
     target: t,
     safePriority: t.safety === "safe" ? 0 : 1,
-    age: t.modifiedAt, // lower = older = higher priority
+    age: t.modifiedAt,
     size: t.size,
   }));
 
@@ -43,11 +36,6 @@ export function selectReclaimCandidates(
   return selected;
 }
 
-/**
- * Parse a human-readable size string like "5gb", "500mb", "1.5GB" into bytes.
- * Supported units: b, kb, mb, gb, tb (case-insensitive).
- * Throws if the format is invalid.
- */
 export function parseSize(raw: string): number {
   const match = raw.trim().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)?$/i);
   if (!match) {

@@ -37,7 +37,6 @@ export interface CacheTarget extends CacheCandidate {
   trackedByGit: boolean;
   symlink: boolean;
   exists: true;
-  /** Set when a running process is actively using this cache. */
   activeProcess?: { pid: number; command: string };
 }
 

@@ -14,6 +14,7 @@ import { readFile } from "node:fs/promises";
 import { executeCleanup } from "../cleanup/executor";
 import { createCleanupPlan } from "../cleanup/planner";
 import { detectCaches } from "../detect";
+import { removeProjectTarget } from "../filesystem/remove";
 import {
   formatAge,
   formatBytes,
@@ -780,7 +781,6 @@ async function handleSweep(args: CliArgs): Promise<void> {
     return;
   }
 
-  const { removeProjectTarget } = await import("../filesystem/remove");
   let totalFreed = 0;
   const removed: string[] = [];
   const failed: Array<{ path: string; error: string }> = [];

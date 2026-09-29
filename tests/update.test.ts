@@ -102,7 +102,6 @@ describe("update checks", () => {
       ),
     ) as typeof fetch;
 
-    // First manual check: fetches from registry
     const first = await checkUpdateManually("0.4.0", {
       cacheDirectory,
       fetcher,
@@ -117,7 +116,6 @@ describe("update checks", () => {
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
 
-    // Second manual check within rate limit window (e.g. +30s): rate limited, no fetch
     const second = await checkUpdateManually("0.4.0", {
       cacheDirectory,
       fetcher,
@@ -132,7 +130,6 @@ describe("update checks", () => {
     });
     expect(fetcher).toHaveBeenCalledTimes(1);
 
-    // Third manual check with force: true: bypasses rate limit, fetches
     const third = await checkUpdateManually("0.4.0", {
       cacheDirectory,
       fetcher,
@@ -142,7 +139,6 @@ describe("update checks", () => {
     expect(third.rateLimited).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(2);
 
-    // Fourth manual check after rate limit expires (+61s from third): fetches
     const fourth = await checkUpdateManually("0.4.0", {
       cacheDirectory,
       fetcher,

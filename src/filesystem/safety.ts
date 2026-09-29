@@ -67,7 +67,6 @@ export async function assertSafeProjectTarget(
     throw new Error(`Target resolves outside project boundary: ${target}`);
   }
 
-  // Catch a non-symlink target reached through a symlinked parent.
   const parentRealPath = await realpath(dirname(target));
   if (!isWithin(rootRealPath, parentRealPath)) {
     throw new Error(

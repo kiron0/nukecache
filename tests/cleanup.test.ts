@@ -341,7 +341,6 @@ describe("cleanup", () => {
       absolutePath: join(root, "protected-file"),
     };
     await writeFile(badTarget.absolutePath, "content");
-    // Make target throw on assertSafeProjectTarget by pointing to project root
     const plan = createCleanupPlan(root, [
       { ...badTarget, absolutePath: root },
     ]);
