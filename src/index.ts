@@ -29,6 +29,7 @@ export {
 export {
   checkForUpdate,
   checkUpdateManually,
+  installUpdate,
   MANUAL_RATE_LIMIT_MS,
   type ManualUpdateResult,
   type UpdateInfo,

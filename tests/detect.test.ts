@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
+const isWindows = process.platform === "win32";
+
 import { detectCaches } from "../src/detect";
 import { findTrackedByGit, isTrackedByGit } from "../src/project/git";
 import { findProjectRoot } from "../src/project/root";
@@ -33,7 +35,12 @@ describe("project detection", () => {
     await mkdir(join(root, "node_modules", ".cache", "turbo"), {
       recursive: true,
     });
+    await writeFile(
+      join(root, "node_modules", ".cache", "turbo", "entry"),
+      "turbo-cache",
+    );
     await mkdir(join(root, "node_modules", ".vite"), { recursive: true });
+    await writeFile(join(root, "node_modules", ".vite", "entry"), "vite-cache");
     await writeFile(join(root, "tsconfig.tsbuildinfo"), "typescript-cache");
 
     const result = await detectCaches({ cwd: root });
@@ -75,15 +82,18 @@ describe("project detection", () => {
     ).rejects.toThrow("escapes project boundary");
   });
 
-  it("does not follow symlink directories while searching TypeScript caches", async () => {
-    const root = await project();
-    const outside = await mkdtemp(join(tmpdir(), "nukecache-outside-"));
-    await writeFile(join(outside, "outside.tsbuildinfo"), "outside");
-    await symlink(outside, join(root, "linked"));
+  it.skipIf(isWindows)(
+    "does not follow symlink directories while searching TypeScript caches",
+    async () => {
+      const root = await project();
+      const outside = await mkdtemp(join(tmpdir(), "nukecache-outside-"));
+      await writeFile(join(outside, "outside.tsbuildinfo"), "outside");
+      await symlink(outside, join(root, "linked"));
 
-    const result = await detectCaches({ cwd: root });
-    expect(result.targets).toHaveLength(0);
-  });
+      const result = await detectCaches({ cwd: root });
+      expect(result.targets).toHaveLength(0);
+    },
+  );
 
   it("detects additional build and test tool caches", async () => {
     const root = await project();

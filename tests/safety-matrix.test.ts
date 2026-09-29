@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+const isWindows = process.platform === "win32";
+
 import { slug } from "../src/detectors/helpers";
 import { mapWithConcurrency } from "../src/filesystem/concurrency";
 import { assertSafeProjectTarget } from "../src/filesystem/safety";
@@ -125,20 +127,25 @@ describe("mapWithConcurrency matrix", () => {
 });
 
 describe("safety matrix - symlinked boundary escape", () => {
-  it("rejects non-symlink target reached through symlinked parent outside project", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nukecache-safety-root-"));
-    const outside = await mkdtemp(join(tmpdir(), "nukecache-safety-outside-"));
-    try {
-      await mkdir(join(outside, "inner"), { recursive: true });
-      await writeFile(join(outside, "inner", "file.txt"), "data");
-      await symlink(outside, join(root, "symlink-folder"), "dir");
-      const target = join(root, "symlink-folder", "inner");
-      await expect(assertSafeProjectTarget(root, target)).rejects.toThrow(
-        "Target resolves outside project boundary",
+  it.skipIf(isWindows)(
+    "rejects non-symlink target reached through symlinked parent outside project",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "nukecache-safety-root-"));
+      const outside = await mkdtemp(
+        join(tmpdir(), "nukecache-safety-outside-"),
       );
-    } finally {
-      await rm(root, { recursive: true, force: true });
-      await rm(outside, { recursive: true, force: true });
-    }
-  });
+      try {
+        await mkdir(join(outside, "inner"), { recursive: true });
+        await writeFile(join(outside, "inner", "file.txt"), "data");
+        await symlink(outside, join(root, "symlink-folder"), "dir");
+        const target = join(root, "symlink-folder", "inner");
+        await expect(assertSafeProjectTarget(root, target)).rejects.toThrow(
+          "Target resolves outside project boundary",
+        );
+      } finally {
+        await rm(root, { recursive: true, force: true });
+        await rm(outside, { recursive: true, force: true });
+      }
+    },
+  );
 });

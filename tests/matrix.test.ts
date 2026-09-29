@@ -368,10 +368,10 @@ describe("process command matrix", () => {
     const originalPlatform = process.platform;
     try {
       Object.defineProperty(process, "platform", { value: "win32" });
-      expect(resolveExecutable("bun")).toBe("bun.exe");
-      expect(resolveExecutable("npm")).toBe("npm.cmd");
-      expect(resolveExecutable("pnpm")).toBe("pnpm.cmd");
-      expect(resolveExecutable("yarn")).toBe("yarn.cmd");
+      expect(resolveExecutable("bun")).toBe("bun");
+      expect(resolveExecutable("npm")).toBe("npm");
+      expect(resolveExecutable("pnpm")).toBe("pnpm");
+      expect(resolveExecutable("yarn")).toBe("yarn");
     } finally {
       Object.defineProperty(process, "platform", { value: originalPlatform });
     }

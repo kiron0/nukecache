@@ -137,13 +137,13 @@ export function installUpdate(version: string): Promise<void> {
   }
 
   return new Promise((resolve, reject) => {
-    const command = process.platform === "win32" ? "npm.cmd" : "npm";
     const child = spawn(
-      command,
+      "npm",
       ["install", "--global", `nukecache@${version}`],
       {
         stdio: "inherit",
         windowsHide: true,
+        shell: process.platform === "win32",
       },
     );
     child.once("error", reject);

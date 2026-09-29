@@ -15,21 +15,17 @@ export type CommandRunner = (
 ) => Promise<string>;
 
 export const runCommand: CommandRunner = async (command, args, options) => {
-  const { stdout } = await execFileAsync(
-    resolveExecutable(command),
-    [...args],
-    {
-      cwd: options.cwd,
-      encoding: "utf8",
-      maxBuffer: 4 * 1024 * 1024,
-      timeout: options.timeout ?? 15_000,
-      windowsHide: true,
-    },
-  );
+  const { stdout } = await execFileAsync(command, [...args], {
+    cwd: options.cwd,
+    encoding: "utf8",
+    maxBuffer: 4 * 1024 * 1024,
+    timeout: options.timeout ?? 15_000,
+    windowsHide: true,
+    shell: process.platform === "win32",
+  });
   return stdout;
 };
 
 export function resolveExecutable(command: string): string {
-  if (process.platform !== "win32") return command;
-  return command === "bun" ? `${command}.exe` : `${command}.cmd`;
+  return command;
 }
