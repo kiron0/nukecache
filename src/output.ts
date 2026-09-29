@@ -196,8 +196,6 @@ export function formatSweepTable(
     "AGE",
   ].join("  ");
 
-  const divider = "-".repeat(header.length);
-
   const rows = entries.map((t) => {
     const proj = truncate(relative(baseDir, t.projectRoot) || ".", COL_PROJECT);
     const cache = truncate(t.path, COL_CACHE);
@@ -208,15 +206,22 @@ export function formatSweepTable(
     );
   });
 
-  return [
+  return formatTable(
     `Sweeping ${baseDir}`,
-    "",
     header,
-    divider,
-    ...rows,
-    divider,
+    rows,
     `Total reclaimable: ${formatBytes(totalBytes)}`,
-  ].join("\n");
+  );
+}
+
+function formatTable(
+  title: string,
+  header: string,
+  rows: string[],
+  footer: string,
+): string {
+  const divider = "-".repeat(header.length);
+  return [title, "", header, divider, ...rows, divider, footer].join("\n");
 }
 
 export function formatReclaimPlan(
@@ -275,8 +280,6 @@ export function formatOrphaned(
     "REASON",
   ].join("  ");
 
-  const divider = "-".repeat(header.length);
-
   const rows = orphaned.map(({ target, reason }) => {
     const cache = truncate(target.path, COL_CACHE).padEnd(COL_CACHE);
     const size = formatBytes(target.size).padEnd(COL_SIZE);
@@ -285,15 +288,12 @@ export function formatOrphaned(
 
   const total = orphaned.reduce((sum, { target }) => sum + target.size, 0);
 
-  return [
+  return formatTable(
     "Orphaned caches",
-    "",
     header,
-    divider,
-    ...rows,
-    divider,
+    rows,
     `Total: ${formatBytes(total)}`,
-  ].join("\n");
+  );
 }
 
 export function formatDockerUsage(

@@ -9,7 +9,7 @@ import {
   select,
   text,
 } from "@clack/prompts";
-import { access, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { basename } from "node:path";
 
 import {
@@ -20,6 +20,7 @@ import {
   saveConfig,
   validateConfig,
 } from "../project/config";
+import { pathExists } from "../detectors/helpers";
 import { printThanks } from "../output";
 import type { NukecacheConfig } from "../types";
 import type { CliArgs } from "./args";
@@ -282,6 +283,28 @@ function promptBoolean(
   });
 }
 
+async function promptCsvList(
+  message: string,
+  placeholder: string,
+  initialValues: string[],
+  validate: (input?: string) => string | undefined,
+) {
+  const value = await text({
+    message,
+    placeholder,
+    initialValue: initialValues.join(", "),
+    validate,
+  });
+  return isCancel(value)
+    ? value
+    : JSON.stringify(
+        value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      );
+}
+
 export function validateDaysInput(input?: string): string | undefined {
   const trimmed = input?.trim() ?? "";
   if (trimmed === "") return "Enter a positive integer.";
@@ -291,26 +314,27 @@ export function validateDaysInput(input?: string): string | undefined {
     : "Enter a positive integer.";
 }
 
-export function validateLimitInput(input?: string): string | undefined {
+export const validateLimitInput = validateDaysInput;
+
+function parseCsvList(
+  input?: string,
+): { items: string[]; hasEmpty: boolean } | undefined {
   const trimmed = input?.trim() ?? "";
-  if (trimmed === "") return "Enter a positive integer.";
-  const num = Number(trimmed);
-  return Number.isSafeInteger(num) && num > 0
-    ? undefined
-    : "Enter a positive integer.";
+  if (trimmed === "") return undefined;
+  const items = trimmed.split(",").map((item) => item.trim());
+  return { items, hasEmpty: items.some((item) => item === "") };
 }
 
 export function validatePackageManagersInput(
   input?: string,
 ): string | undefined {
-  const trimmed = input?.trim() ?? "";
-  if (trimmed === "") return undefined;
-  const parts = trimmed.split(",").map((item) => item.trim());
-  if (parts.some((item) => item === "")) {
+  const parsed = parseCsvList(input);
+  if (!parsed) return undefined;
+  if (parsed.hasEmpty) {
     return "Package managers must not contain empty items.";
   }
   const valid = new Set(["npm", "pnpm", "yarn", "bun"]);
-  for (const item of parts) {
+  for (const item of parsed.items) {
     if (!valid.has(item)) {
       return `Invalid package manager "${item}". Allowed: npm, pnpm, yarn, bun.`;
     }
@@ -319,10 +343,9 @@ export function validatePackageManagersInput(
 }
 
 export function validatePathsInput(input?: string): string | undefined {
-  const trimmed = input?.trim() ?? "";
-  if (trimmed === "") return undefined;
-  const parts = trimmed.split(",").map((item) => item.trim());
-  if (parts.some((item) => item === "")) {
+  const parsed = parseCsvList(input);
+  if (!parsed) return undefined;
+  if (parsed.hasEmpty) {
     return "Entries must not contain empty items.";
   }
   return undefined;
@@ -414,20 +437,12 @@ async function promptConfigValue(
     );
   }
   if (key === "packageManagers") {
-    const value = await text({
-      message: "Restricted package managers (npm, pnpm, yarn, bun)",
-      placeholder: "pnpm, bun",
-      initialValue: config.packageManagers.join(", "),
-      validate: validatePackageManagersInput,
-    });
-    return isCancel(value)
-      ? value
-      : JSON.stringify(
-          value
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        );
+    return promptCsvList(
+      "Restricted package managers (npm, pnpm, yarn, bun)",
+      "pnpm, bun",
+      config.packageManagers,
+      validatePackageManagersInput,
+    );
   }
   if (key === "noUpdateCheck") {
     return select({
@@ -469,24 +484,15 @@ async function promptConfigValue(
     });
   }
   if (key === "ignore" || key === "include") {
-    const values = key === "ignore" ? config.ignore : config.include;
-    const value = await text({
-      message:
-        key === "ignore"
-          ? "Ignored IDs, tools, or paths"
-          : "Additional project cache paths",
-      placeholder: key === "ignore" ? "vite, turbo" : ".generated-cache",
-      initialValue: values.join(", "),
-      validate: validatePathsInput,
-    });
-    return isCancel(value)
-      ? value
-      : JSON.stringify(
-          value
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
-        );
+    const isIgnore = key === "ignore";
+    return promptCsvList(
+      isIgnore
+        ? "Ignored IDs, tools, or paths"
+        : "Additional project cache paths",
+      isIgnore ? "vite, turbo" : ".generated-cache",
+      isIgnore ? config.ignore : config.include,
+      validatePathsInput,
+    );
   }
   return text({
     message: "Custom cache definitions (JSON array)",
@@ -618,15 +624,6 @@ function parseConfigValue(key: ConfigKey, source: string): unknown {
 
 function formatValues(values: string[]): string {
   return values.length === 0 ? "none" : values.join(", ");
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function resolveConfigCollision(

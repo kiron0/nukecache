@@ -1,7 +1,4 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "./command";
 
 const ACTIVE_TOOL_PATTERNS: Array<{ pattern: RegExp; tool: string }> = [
   { pattern: /next(\s+dev|\s+start|\.js)/i, tool: "next" },

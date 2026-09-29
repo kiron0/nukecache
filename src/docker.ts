@@ -1,7 +1,5 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "./process/command";
+import { tryParseBytes } from "./reclaim";
 
 export interface DockerDiskUsage {
   buildCacheSize: number;
@@ -74,19 +72,19 @@ function parseDf(output: string): DockerDiskUsage {
       const obj = JSON.parse(line) as Record<string, unknown>;
       const type = typeof obj["Type"] === "string" ? obj["Type"] : "";
       if (type === "Build Cache") {
-        const sizeStr = typeof obj["Size"] === "string" ? obj["Size"] : "0";
-        buildCacheSize = parseDockerBytes(sizeStr);
+        buildCacheSize =
+          tryParseBytes(typeof obj["Size"] === "string" ? obj["Size"] : "0") ??
+          0;
         const recStr =
           typeof obj["Reclaimable"] === "string" ? obj["Reclaimable"] : "0";
-        buildCacheReclaimable = parseDockerBytes(recStr.split(" ")[0] ?? "0");
+        buildCacheReclaimable = tryParseBytes(recStr.split(" ")[0] ?? "0") ?? 0;
       }
     } catch {
       if (/build\s+cache/i.test(line)) {
         const tokens = line.trim().split(/\s{2,}/);
-        buildCacheSize = parseDockerBytes(tokens[2] ?? "0");
-        buildCacheReclaimable = parseDockerBytes(
-          (tokens[3] ?? "0").split(" ")[0] ?? "0",
-        );
+        buildCacheSize = tryParseBytes(tokens[2] ?? "0") ?? 0;
+        buildCacheReclaimable =
+          tryParseBytes((tokens[3] ?? "0").split(" ")[0] ?? "0") ?? 0;
       }
     }
   }
@@ -97,20 +95,5 @@ function parseDf(output: string): DockerDiskUsage {
 function parseReclaimedBytes(output: string): number {
   const match = output.match(/Total reclaimed space:\s*([\d.]+\s*\w+)/i);
   if (!match) return 0;
-  return parseDockerBytes(match[1]?.trim() ?? "0");
-}
-
-function parseDockerBytes(value: string): number {
-  const match = value.match(/^([\d.]+)\s*(B|KB|MB|GB|TB)?$/i);
-  if (!match) return 0;
-  const num = parseFloat(match[1] ?? "0");
-  const unit = (match[2] ?? "B").toUpperCase();
-  const map: Record<string, number> = {
-    B: 1,
-    KB: 1024,
-    MB: 1024 ** 2,
-    GB: 1024 ** 3,
-    TB: 1024 ** 4,
-  };
-  return Math.round(num * (map[unit] ?? 1));
+  return tryParseBytes(match[1]?.trim() ?? "0") ?? 0;
 }

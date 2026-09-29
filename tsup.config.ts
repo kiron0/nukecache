@@ -6,7 +6,15 @@ export default defineConfig([
     format: ["esm"],
     dts: false,
     clean: true,
-    minify: false,
+    minify: "terser",
+    terserOptions: {
+      compress: {
+        passes: 2,
+      },
+      format: {
+        comments: false,
+      },
+    },
     platform: "node",
     target: "node20",
     treeshake: true,

@@ -36,24 +36,29 @@ export function selectReclaimCandidates(
   return selected;
 }
 
-export function parseSize(raw: string): number {
+const MULTIPLIERS: Record<string, number> = {
+  b: 1,
+  kb: 1024,
+  mb: 1024 ** 2,
+  gb: 1024 ** 3,
+  tb: 1024 ** 4,
+};
+
+export function tryParseBytes(raw: string): number | undefined {
   const match = raw.trim().match(/^(\d+(?:\.\d+)?)\s*(b|kb|mb|gb|tb)?$/i);
-  if (!match) {
+  if (!match) return undefined;
+  const num = parseFloat(match[1] ?? "0");
+  const unit = (match[2] ?? "b").toLowerCase();
+  return Math.round(num * (MULTIPLIERS[unit] ?? 1));
+}
+
+export function parseSize(raw: string): number {
+  const bytes = tryParseBytes(raw);
+  if (bytes === undefined) {
     throw new Error(
       `Invalid size "${raw}". Examples: 500mb, 5gb, 1.5gb, 200mb`,
     );
   }
-  const value = parseFloat(match[1] ?? "0");
-  const unit = (match[2] ?? "b").toLowerCase();
-  const multipliers: Record<string, number> = {
-    b: 1,
-    kb: 1024,
-    mb: 1024 ** 2,
-    gb: 1024 ** 3,
-    tb: 1024 ** 4,
-  };
-  const multiplier = multipliers[unit] ?? 1;
-  const bytes = Math.round(value * multiplier);
   if (bytes <= 0) throw new Error(`Size must be positive: ${raw}`);
   return bytes;
 }

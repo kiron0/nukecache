@@ -58,6 +58,42 @@ import {
 import { loadConfig } from "../project/config";
 import { createProjectContext } from "../project/root";
 
+function startSpinner(json: boolean, msg: string): (stopMsg?: string) => void {
+  const s = !json && process.stderr.isTTY ? spinner() : undefined;
+  s?.start(msg);
+  return (stopMsg?: string) => s?.stop(stopMsg);
+}
+
+async function confirmAction(
+  message: string,
+  skipMessage = "Cleanup skipped. No files deleted.",
+): Promise<boolean> {
+  const approved = await confirm({ message, initialValue: false });
+  if (isCancel(approved) || !approved) {
+    cancel(approved === false ? skipMessage : "Cancelled. No files deleted.");
+    printThanks();
+    return false;
+  }
+  return true;
+}
+
+async function runCleanupPlan(
+  plan: CleanupPlan,
+  json: boolean,
+  startMsg = "Clearing caches",
+): Promise<void> {
+  const stop = startSpinner(json, startMsg);
+  const result = await executeCleanup(plan);
+  stop(startMsg === "Clearing caches" ? "Cleanup finished" : "Done");
+  if (json) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    console.log(formatResult(result));
+    printThanks();
+  }
+  if (result.failed.length > 0) process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   if (process.stdin.isTTY) {
     process.once("SIGINT", () => {
@@ -161,8 +197,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-    progress?.start("Detecting development caches");
+    const stopDetect = startSpinner(args.json, "Detecting development caches");
     const detection = await detectCaches({
       cwd: context.root,
       config,
@@ -174,7 +209,7 @@ async function main(): Promise<void> {
           : {}),
       ...(args.manager ? { packageManagers: [args.manager] } : {}),
     });
-    progress?.stop(`Scanned ${detection.context.root}`);
+    stopDetect(`Scanned ${detection.context.root}`);
 
     if (!args.json && detection.warnings.length > 0) {
       console.error(formatWarnings(detection.warnings));
@@ -307,34 +342,18 @@ async function main(): Promise<void> {
           item.action === "remove" &&
           (item.target.scope === "global" || item.target.safety === "rebuild"),
       );
-      const approved = await confirm({
-        message: elevated
-          ? "Clear selected global or rebuildable caches?"
-          : "Clear selected caches?",
-        initialValue: false,
-      });
-      if (isCancel(approved) || !approved) {
-        cancel(
-          approved === false
-            ? "Cleanup skipped. No files deleted."
-            : "Cancelled. No files deleted.",
-        );
-        printThanks();
+      if (
+        !(await confirmAction(
+          elevated
+            ? "Clear selected global or rebuildable caches?"
+            : "Clear selected caches?",
+        ))
+      ) {
         return;
       }
     }
 
-    const cleanupProgress =
-      !args.json && process.stderr.isTTY ? spinner() : undefined;
-    cleanupProgress?.start("Clearing caches");
-    const result = await executeCleanup(plan);
-    cleanupProgress?.stop("Cleanup finished");
-    if (args.json) console.log(JSON.stringify(result, null, 2));
-    else {
-      console.log(formatResult(result));
-      printThanks();
-    }
-    if (result.failed.length > 0) process.exitCode = 1;
+    await runCleanupPlan(plan, args.json);
   } catch (error) {
     if (
       error instanceof Error &&
@@ -412,19 +431,7 @@ function toListJson(
   return {
     packageManagers,
     caches: targets.map((target) => ({
-      id: target.id,
-      name: target.name,
-      path: target.path,
-      size: target.size,
-      scope: target.scope,
-      safety: target.safety,
-      tool: target.tool,
-      description: target.description,
-      consequences: target.consequences,
-      trackedByGit: target.trackedByGit,
-      symlink: target.symlink,
-      createdAt: new Date(target.createdAt).toISOString(),
-      modifiedAt: new Date(target.modifiedAt).toISOString(),
+      ...toTargetJson(target),
       ...(target.cleanup
         ? {
             cleanup: {
@@ -683,14 +690,13 @@ async function handleSweep(args: CliArgs): Promise<void> {
   const isInteractive =
     !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-  progress?.start(`Scanning ${baseDir}`);
+  const stopSweep = startSpinner(args.json, `Scanning ${baseDir}`);
 
   const result = await sweep(baseDir, {
     ...(days !== undefined ? { days } : {}),
   });
 
-  progress?.stop(
+  stopSweep(
     `Scanned ${result.projects.length} project(s), ${result.allTargets.length} cache(s) found`,
   );
 
@@ -770,14 +776,7 @@ async function handleSweep(args: CliArgs): Promise<void> {
     return;
   }
 
-  const approved = await confirm({
-    message: `Clear ${selected.length} cache(s)?`,
-    initialValue: false,
-  });
-
-  if (isCancel(approved) || !approved) {
-    cancel("Cleanup skipped. No files deleted.");
-    printThanks();
+  if (!(await confirmAction(`Clear ${selected.length} cache(s)?`))) {
     return;
   }
 
@@ -821,15 +820,14 @@ async function handleReclaim(
   const isInteractive =
     !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-  progress?.start("Detecting caches");
+  const stopDetect = startSpinner(args.json, "Detecting caches");
 
   const detection = await detectCaches({
     cwd: context.root,
     config,
     scope: "project",
   });
-  progress?.stop(`Scanned ${detection.context.root}`);
+  stopDetect(`Scanned ${detection.context.root}`);
 
   const candidates = selectReclaimCandidates(detection.targets, targetBytes);
 
@@ -864,17 +862,7 @@ async function handleReclaim(
         "Interactive reclaim requires a TTY. Use reclaim <size> --yes or --dry-run.",
       );
     }
-    const approved = await confirm({
-      message: "Clean selected caches?",
-      initialValue: false,
-    });
-    if (isCancel(approved) || !approved) {
-      cancel(
-        approved === false
-          ? "Cleanup skipped. No files deleted."
-          : "Cancelled. No files deleted.",
-      );
-      printThanks();
+    if (!(await confirmAction("Clean selected caches?"))) {
       return;
     }
   }
@@ -885,16 +873,7 @@ async function handleReclaim(
     allowGlobal: false,
   });
 
-  const cleanupProgress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
-  cleanupProgress?.start("Clearing caches");
-  const result = await executeCleanup(plan);
-  cleanupProgress?.stop("Cleanup finished");
-
-  console.log(formatResult(result));
-  printThanks();
-
-  if (result.failed.length > 0) process.exitCode = 1;
+  await runCleanupPlan(plan, args.json);
 }
 
 async function handleOrphaned(
@@ -902,15 +881,14 @@ async function handleOrphaned(
   context: Awaited<ReturnType<typeof createProjectContext>>,
   config: Awaited<ReturnType<typeof loadConfig>>,
 ): Promise<void> {
-  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-  progress?.start("Detecting caches");
+  const stopDetect = startSpinner(args.json, "Detecting caches");
 
   const detection = await detectCaches({
     cwd: context.root,
     config,
     scope: "project",
   });
-  progress?.stop(`Scanned ${detection.context.root}`);
+  stopDetect(`Scanned ${detection.context.root}`);
 
   const orphaned = await detectOrphanedCaches(
     detection.targets,
@@ -952,17 +930,9 @@ async function handleOrphaned(
       );
     }
     intro("nukecache orphaned");
-    const approved = await confirm({
-      message: `Remove ${orphaned.length} orphaned cache(s)?`,
-      initialValue: false,
-    });
-    if (isCancel(approved) || !approved) {
-      cancel(
-        approved === false
-          ? "Cleanup skipped. No files deleted."
-          : "Cancelled. No files deleted.",
-      );
-      printThanks();
+    if (
+      !(await confirmAction(`Remove ${orphaned.length} orphaned cache(s)?`))
+    ) {
       return;
     }
   }
@@ -977,15 +947,7 @@ async function handleOrphaned(
     },
   );
 
-  const cleanupProgress =
-    !args.json && process.stderr.isTTY ? spinner() : undefined;
-  cleanupProgress?.start("Clearing orphaned caches");
-  const result = await executeCleanup(plan);
-  cleanupProgress?.stop("Done");
-
-  console.log(formatResult(result));
-  printThanks();
-  if (result.failed.length > 0) process.exitCode = 1;
+  await runCleanupPlan(plan, args.json, "Clearing orphaned caches");
 }
 
 async function handleDockerList(args: CliArgs): Promise<void> {
@@ -996,11 +958,10 @@ async function handleDockerList(args: CliArgs): Promise<void> {
     return;
   }
 
-  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-  progress?.start("Querying Docker");
+  const stopQuery = startSpinner(args.json, "Querying Docker");
 
   const usage = await getDockerDiskUsage();
-  progress?.stop("Done");
+  stopQuery("Done");
 
   if (args.json) {
     console.log(
@@ -1050,22 +1011,20 @@ async function handleDockerClean(args: CliArgs): Promise<void> {
       formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable),
     );
     console.log("");
-    const approved = await confirm({
-      message: "Prune all Docker build cache? (docker builder prune --force)",
-      initialValue: false,
-    });
-    if (isCancel(approved) || !approved) {
-      cancel(approved === false ? "Cleanup skipped." : "Cancelled.");
-      printThanks();
+    if (
+      !(await confirmAction(
+        "Prune all Docker build cache? (docker builder prune --force)",
+        "Cleanup skipped.",
+      ))
+    ) {
       return;
     }
   }
 
-  const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
-  progress?.start("Running docker builder prune");
+  const stopPrune = startSpinner(args.json, "Running docker builder prune");
 
   const result = await pruneDockerBuildCache(true);
-  progress?.stop("Done");
+  stopPrune("Done");
 
   if (args.json) {
     console.log(JSON.stringify({ reclaimedBytes: result.reclaimedBytes }));
