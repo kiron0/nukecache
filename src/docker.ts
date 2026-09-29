@@ -91,12 +91,14 @@ function parseDf(output: string): DockerDiskUsage {
     try {
       const obj = JSON.parse(line) as Record<string, unknown>;
       // docker system df --format {{json .}} per object has Type, Size, Reclaimable
-      const type = String(obj["Type"] ?? "");
+      const type = typeof obj["Type"] === "string" ? obj["Type"] : "";
       if (type === "Build Cache") {
-        buildCacheSize = parseDockerBytes(String(obj["Size"] ?? "0"));
-        const rec = String(obj["Reclaimable"] ?? "0");
+        const sizeStr = typeof obj["Size"] === "string" ? obj["Size"] : "0";
+        buildCacheSize = parseDockerBytes(sizeStr);
+        const recStr =
+          typeof obj["Reclaimable"] === "string" ? obj["Reclaimable"] : "0";
         // Reclaimable may be "2.5GB (40%)" — take the first token
-        buildCacheReclaimable = parseDockerBytes(rec.split(" ")[0] ?? "0");
+        buildCacheReclaimable = parseDockerBytes(recStr.split(" ")[0] ?? "0");
       }
     } catch {
       // Plain text row: "Build Cache   25       36.63MB   17.58MB"

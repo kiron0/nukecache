@@ -103,10 +103,10 @@ async function findProjectRoots(dir: string, depth: number): Promise<string[]> {
 
   let entries: Dirent<string>[];
   try {
-    entries = (await readdir(dir, {
+    entries = await readdir(dir, {
       withFileTypes: true,
       encoding: "utf8",
-    })) as Dirent<string>[];
+    });
   } catch {
     return [];
   }

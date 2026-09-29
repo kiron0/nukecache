@@ -96,7 +96,7 @@ async function main(): Promise<void> {
       await handleUpdateCheck(version, args);
     }
     if (args.command === "sweep") {
-      await handleSweep(args, version);
+      await handleSweep(args);
       return;
     }
 
@@ -676,7 +676,7 @@ Options:
   --version, -v                     Show version`);
 }
 
-async function handleSweep(args: CliArgs, _version: string): Promise<void> {
+async function handleSweep(args: CliArgs): Promise<void> {
   const baseDir = args.sweepDir ?? process.cwd();
   const days = args.days ?? args.minAge;
   const isInteractive =
