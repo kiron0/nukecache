@@ -72,14 +72,6 @@ const result = await executeCleanup(plan);
 console.log(`Freed ${result.bytesFreed} bytes`);
 ```
 
-## Documentation
-
-- [Getting Started](https://nukecache.js.org/docs)
-- [CLI Reference](https://nukecache.js.org/docs/cli)
-- [Configuration](https://nukecache.js.org/docs/configuration)
-- [Safety & Detection Model](https://nukecache.js.org/docs/safety)
-- [Node API Reference](https://nukecache.js.org/docs/api)
-
 ## License
 
 [MIT](LICENSE)

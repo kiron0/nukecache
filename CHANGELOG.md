@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- Remove programmatic API (`src/index.ts`, CJS/ESM library exports, type declarations). CLI-only distribution.
+- Drop `main`, `module`, `types`, and `exports` fields from `package.json`. Build produces only `dist/cli.js`.
+- Fix Windows command execution: replace `resolveExecutable` wrapper with `shell: true` on Win32 in `runCommand` and `installUpdate`.
+- Fix `installUpdate` to pass `shell: process.platform === "win32"` to `spawn` instead of resolving `npm.cmd` manually.
+- Export `installUpdate` from public API (was missing).
+- Restrict CI workflow triggers to `main` branch for both `push` and `pull_request` events.
+- Expand test coverage for cleanup, detection, and safety-matrix edge cases.
+
 ## 0.5.0
 
 - Support configuration aliases (`nkc.config.json`, `ncache.config.json`) alongside `nukecache.config.json`.
