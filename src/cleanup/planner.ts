@@ -25,6 +25,13 @@ export function createCleanupPlan(
     if (target.trackedByGit) {
       return { target, action: "skip", reason: "Tracked by Git" };
     }
+    if (target.activeProcess && !options.allowRebuild) {
+      return {
+        target,
+        action: "skip",
+        reason: `In use by ${target.activeProcess.command.split(" ")[0]} (PID ${target.activeProcess.pid}) — use --force to override`,
+      };
+    }
     if (target.scope === "global") {
       if (!options.allowGlobal) {
         return { target, action: "skip", reason: "Global cleanup not enabled" };

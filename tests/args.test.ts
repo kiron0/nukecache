@@ -8,6 +8,7 @@ describe("parseCliArgs", () => {
       all: false,
       checkUpdate: false,
       command: "clean",
+      docker: false,
       dryRun: false,
       force: false,
       global: false,
@@ -148,5 +149,40 @@ describe("parseCliArgs", () => {
     expect(() => parseCliArgs(["npm", "pnpm"])).toThrow(
       "Unexpected package manager: pnpm",
     );
+    expect(() => parseCliArgs(["sweep", "~/Code", "--docker"])).toThrow(
+      "--docker is only valid with list or clean",
+    );
+  });
+
+  it("parses orphaned command and flag", () => {
+    expect(parseCliArgs(["orphaned"])).toMatchObject({
+      command: "orphaned",
+    });
+    expect(parseCliArgs(["clean", "--orphaned"])).toMatchObject({
+      command: "orphaned",
+    });
+    expect(parseCliArgs(["orphaned", "--dry-run"])).toMatchObject({
+      command: "orphaned",
+      dryRun: true,
+    });
+    expect(parseCliArgs(["orphaned", "--yes"])).toMatchObject({
+      command: "orphaned",
+      yes: true,
+    });
+  });
+
+  it("parses docker option for list and clean", () => {
+    expect(parseCliArgs(["list", "--docker"])).toMatchObject({
+      command: "list",
+      docker: true,
+    });
+    expect(parseCliArgs(["clean", "--docker"])).toMatchObject({
+      command: "clean",
+      docker: true,
+    });
+    expect(parseCliArgs(["--docker"])).toMatchObject({
+      command: "clean",
+      docker: true,
+    });
   });
 });

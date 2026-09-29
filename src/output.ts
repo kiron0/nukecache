@@ -274,3 +274,60 @@ function truncate(value: string, max: number): string {
   if (value.length <= max) return value;
   return `\u2026${value.slice(-(max - 1))}`;
 }
+
+// ---------------------------------------------------------------------------
+// Orphaned formatter
+// ---------------------------------------------------------------------------
+
+export function formatOrphaned(
+  orphaned: Array<{ target: CacheTarget; reason: string }>,
+): string {
+  if (orphaned.length === 0) return "No orphaned caches detected.";
+
+  const COL_CACHE = 24;
+  const COL_SIZE = 10;
+
+  const header = [
+    "CACHE".padEnd(COL_CACHE),
+    "SIZE".padEnd(COL_SIZE),
+    "REASON",
+  ].join("  ");
+
+  const divider = "-".repeat(header.length);
+
+  const rows = orphaned.map(({ target, reason }) => {
+    const cache = truncate(target.path, COL_CACHE).padEnd(COL_CACHE);
+    const size = formatBytes(target.size).padEnd(COL_SIZE);
+    return [cache, size, reason].join("  ");
+  });
+
+  const total = orphaned.reduce((sum, { target }) => sum + target.size, 0);
+
+  return [
+    "Orphaned caches",
+    "",
+    header,
+    divider,
+    ...rows,
+    divider,
+    `Total: ${formatBytes(total)}`,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Docker formatter
+// ---------------------------------------------------------------------------
+
+export function formatDockerUsage(
+  buildCacheSize: number,
+  buildCacheReclaimable: number,
+): string {
+  const lines = [
+    "Docker build cache",
+    "",
+    `  Size:        ${formatBytes(buildCacheSize)}`,
+    `  Reclaimable: ${formatBytes(buildCacheReclaimable)}`,
+  ];
+  return lines.join("\n");
+}
+

@@ -11,6 +11,9 @@
 - Expand test coverage for cleanup, detection, and safety-matrix edge cases.
 - Add `sweep <dir>` command: walk a directory tree, find all project roots, detect caches per project, display a sorted table with project, cache path, size, and age. Supports `--days`/`--min-age` to filter by cache age, `--dry-run`, `--json`, and interactive multi-select cleanup.
 - Add `reclaim <size>` command: parse a human-readable size target (e.g. `5gb`, `500mb`), auto-select the safest candidates (safe → oldest → largest) until the target is met, display a plan, and confirm before deleting. Supports `--dry-run`, `--yes`, and `--json`.
+- Add runtime active-process protection: automatically scan running dev servers (`next dev`, `vite`, `turbo`, `jest --watch`, `vitest`, `playwright`, `cypress`); skip active caches with PID indicator unless `--force` is used.
+- Add `orphaned` command and `--orphaned` flag: detect caches whose tools, dependencies, or configuration files no longer exist in the project; preview with `--dry-run` or clear interactively.
+- Add Docker build cache support (`nkc list --docker`, `nkc clean --docker`): inspect build cache size with `docker system df` and prune safely with `docker builder prune`.
 
 
 ## 0.5.0

@@ -9,6 +9,7 @@ import { loadConfig } from "./project/config";
 import { findTrackedByGit } from "./project/git";
 import { detectPackageManagers } from "./project/package-manager";
 import { createProjectContext } from "./project/root";
+import { getActiveToolProcesses } from "./process/active";
 import type {
   CacheCandidate,
   CacheTarget,
@@ -84,9 +85,13 @@ export async function detectCaches(
       ),
     ),
   );
+  const activeProcesses = await getActiveToolProcesses();
   const targets = enriched.filter(
     (target): target is CacheTarget => target !== undefined,
-  );
+  ).map((target) => {
+    const active = activeProcesses.get(target.tool);
+    return active ? { ...target, activeProcess: { pid: active.pid, command: active.command } } : target;
+  });
   targets.sort(
     (left, right) =>
       right.size - left.size || left.path.localeCompare(right.path),

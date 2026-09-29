@@ -17,9 +17,11 @@ import { detectCaches } from "../detect";
 import {
   formatAge,
   formatBytes,
+  formatDockerUsage,
   formatLargest,
   formatList,
   formatOld,
+  formatOrphaned,
   formatPlan,
   formatProjectSummary,
   formatReclaimPlan,
@@ -31,6 +33,8 @@ import {
 } from "../output";
 import { parseSize, selectReclaimCandidates } from "../reclaim";
 import { sweep } from "../sweep";
+import { detectOrphanedCaches } from "../orphaned";
+import { isDockerAvailable, getDockerDiskUsage, pruneDockerBuildCache } from "../docker";
 import type { CacheTarget, CleanupPlan, DetectionResult } from "../types";
 import {
   checkForUpdate,
@@ -97,6 +101,11 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (args.command === "orphaned") {
+      await handleOrphaned(args, context, config);
+      return;
+    }
+
     if (args.command === "config") {
       if (
         args.configAction === "show" &&
@@ -136,6 +145,15 @@ async function main(): Promise<void> {
     }
     if (args.command === "old" && args.days === undefined && config.days) {
       args.days = config.days;
+    }
+
+    if (args.docker) {
+      if (args.command === "list") {
+        await handleDockerList(args);
+      } else {
+        await handleDockerClean(args);
+      }
+      return;
     }
 
     const progress = !args.json && process.stderr.isTTY ? spinner() : undefined;
@@ -628,14 +646,19 @@ Usage:
   nukecache sweep ~/Code --days 30  Scan projects with caches older than 30d
   nukecache reclaim 5gb             Auto-select safest caches to free 5 GB
   nukecache reclaim 500mb --dry-run Preview reclaim without deleting
+  nukecache orphaned                Show caches whose tool no longer exists
+  nukecache orphaned --dry-run      Preview orphaned cleanup without deleting
+  nukecache list --docker           Show Docker build cache size
+  nukecache clean --docker          Prune Docker build cache interactively
 
 Options:
   --all                             Select all safe project caches
   --check-update                    Check for package updates (60s rate limit)
   --cwd <path>                      Scan another project directory
   --days <number>                   Age threshold for old/sweep commands
+  --docker                          Operate on Docker build cache (list/clean)
   --dry-run                         Preview; never delete
-  --force                           Include rebuildable/global caches
+  --force                           Include rebuildable/global caches; bypass active-cache protection
   --global                          Package-manager cache scope
   --ignore <id|tool|path>           Skip target (repeatable)
   --json                            Emit machine-readable JSON
@@ -648,6 +671,7 @@ Options:
   --help, -h                        Show help
   --version, -v                     Show version`);
 }
+
 
 async function handleSweep(
   args: CliArgs,
@@ -872,6 +896,179 @@ async function handleReclaim(
   printThanks();
 
   if (result.failed.length > 0) process.exitCode = 1;
+}
+
+async function handleOrphaned(
+  args: CliArgs,
+  context: Awaited<ReturnType<typeof createProjectContext>>,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+): Promise<void> {
+  const progress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  progress?.start("Detecting caches");
+
+  const detection = await detectCaches({
+    cwd: context.root,
+    config,
+    scope: "project",
+  });
+  progress?.stop(`Scanned ${detection.context.root}`);
+
+  const orphaned = await detectOrphanedCaches(detection.targets, detection.context);
+
+  if (args.json) {
+    console.log(
+      JSON.stringify({
+        orphaned: orphaned.map(({ target, reason }) => ({
+          ...toTargetJson(target),
+          orphanReason: reason,
+        })),
+        totalBytes: orphaned.reduce((s, { target }) => s + target.size, 0),
+      }),
+    );
+    return;
+  }
+
+  console.log(formatOrphaned(orphaned));
+
+  if (orphaned.length === 0) {
+    printThanks();
+    return;
+  }
+
+  if (args.dryRun) {
+    console.log("\nDry run — no files deleted.");
+    printThanks();
+    return;
+  }
+
+  const isInteractive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  if (!args.yes) {
+    if (!isInteractive) {
+      throw new Error(
+        "orphaned requires confirmation. Use orphaned --yes or --dry-run.",
+      );
+    }
+    intro("nukecache orphaned");
+    const approved = await confirm({
+      message: `Remove ${orphaned.length} orphaned cache(s)?`,
+      initialValue: false,
+    });
+    if (isCancel(approved) || !approved) {
+      cancel(
+        approved === false
+          ? "Cleanup skipped. No files deleted."
+          : "Cancelled. No files deleted.",
+      );
+      printThanks();
+      return;
+    }
+  }
+
+  const plan = createCleanupPlan(
+    context.root,
+    orphaned.map(({ target }) => target),
+    { selectedIds: orphaned.map(({ target }) => target.id), safeOnly: false, allowGlobal: false },
+  );
+
+  const cleanupProgress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  cleanupProgress?.start("Clearing orphaned caches");
+  const result = await executeCleanup(plan);
+  cleanupProgress?.stop("Done");
+
+  console.log(formatResult(result));
+  printThanks();
+  if (result.failed.length > 0) process.exitCode = 1;
+}
+
+async function handleDockerList(args: CliArgs): Promise<void> {
+  const available = await isDockerAvailable();
+  if (!available) {
+    console.error("Docker is not running or not installed.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const progress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  progress?.start("Querying Docker");
+
+  const usage = await getDockerDiskUsage();
+  progress?.stop("Done");
+
+  if (args.json) {
+    console.log(
+      JSON.stringify({
+        buildCacheSize: usage.buildCacheSize,
+        buildCacheReclaimable: usage.buildCacheReclaimable,
+      }),
+    );
+    return;
+  }
+
+  console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+  printThanks();
+}
+
+async function handleDockerClean(args: CliArgs): Promise<void> {
+  const available = await isDockerAvailable();
+  if (!available) {
+    console.error("Docker is not running or not installed.");
+    process.exitCode = 1;
+    return;
+  }
+
+  if (args.dryRun) {
+    const usage = await getDockerDiskUsage();
+    console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+    console.log("\nDry run — no build cache pruned.");
+    printThanks();
+    return;
+  }
+
+  const isInteractive = Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  if (!args.yes && !args.force) {
+    if (!isInteractive) {
+      throw new Error(
+        "Docker prune requires confirmation. Use clean --docker --yes or --dry-run.",
+      );
+    }
+    intro("nukecache clean --docker");
+    const usage = await getDockerDiskUsage();
+    console.log(formatDockerUsage(usage.buildCacheSize, usage.buildCacheReclaimable));
+    console.log("");
+    const approved = await confirm({
+      message: "Prune all Docker build cache? (docker builder prune --force)",
+      initialValue: false,
+    });
+    if (isCancel(approved) || !approved) {
+      cancel(
+        approved === false
+          ? "Cleanup skipped."
+          : "Cancelled.",
+      );
+      printThanks();
+      return;
+    }
+  }
+
+  const progress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  progress?.start("Running docker builder prune");
+
+  const result = await pruneDockerBuildCache(true);
+  progress?.stop("Done");
+
+  if (args.json) {
+    console.log(JSON.stringify({ reclaimedBytes: result.reclaimedBytes }));
+    return;
+  }
+
+  console.log(`Docker build cache pruned. Freed: ${formatBytes(result.reclaimedBytes)}`);
+  printThanks();
 }
 
 void main();

@@ -10,7 +10,8 @@ export type CliCommand =
   | "old"
   | "check-update"
   | "sweep"
-  | "reclaim";
+  | "reclaim"
+  | "orphaned";
 export type ConfigAction = "set" | "show" | "unset";
 
 const COMMANDS: CliCommand[] = [
@@ -23,12 +24,14 @@ const COMMANDS: CliCommand[] = [
   "check-update",
   "sweep",
   "reclaim",
+  "orphaned",
 ];
 const OPTIONS = [
   "--all",
   "--check-update",
   "--cwd",
   "--days",
+  "--docker",
   "--dry-run",
   "--force",
   "--global",
@@ -39,6 +42,7 @@ const OPTIONS = [
   "--limit",
   "--min-age",
   "--no-update-check",
+  "--orphaned",
   "--project",
   "--safe",
   "--version",
@@ -55,6 +59,7 @@ export interface CliArgs {
   configKey?: string;
   configValue?: string;
   cwd?: string;
+  docker: boolean;
   dryRun: boolean;
   days?: number;
   explainTarget?: string;
@@ -80,6 +85,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     all: false,
     checkUpdate: false,
     command: "clean",
+    docker: false,
     dryRun: false,
     force: false,
     global: false,
@@ -154,6 +160,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case "--cwd":
         args.cwd = requireValue(argv, ++index, arg);
         break;
+      case "--docker":
+        args.docker = true;
+        break;
       case "--dry-run":
         args.dryRun = true;
         break;
@@ -184,6 +193,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
         break;
       case "--no-update-check":
         args.noUpdateCheck = true;
+        break;
+      case "--orphaned":
+        args.command = "orphaned";
         break;
       case "--project":
         args.project = true;
@@ -220,6 +232,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
     args.command !== "check-update" &&
     args.command !== "sweep" &&
     args.command !== "reclaim" &&
+    args.command !== "orphaned" &&
     (args.dryRun || args.yes || args.all || args.safe || args.force)
   ) {
     throw new Error(`${args.command} does not accept cleanup flags`);
@@ -258,7 +271,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
   if (args.command === "reclaim" && !args.reclaimTarget) {
     throw new Error("reclaim requires a size argument, e.g. reclaim 5gb");
   }
-  if (args.yes && !args.safe && !args.force) {
+  if (args.docker && args.command !== "list" && args.command !== "clean") {
+    throw new Error("--docker is only valid with list or clean");
+  }
+  if (
+    args.command === "clean" &&
+    !args.docker &&
+    args.yes &&
+    !args.safe &&
+    !args.force
+  ) {
     throw new Error("--yes requires --safe, --all, or --force");
   }
   if (args.yes && args.global && !args.force) {

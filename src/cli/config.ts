@@ -507,6 +507,7 @@ function configArgs(
     configAction: action,
     ...(key ? { configKey: key } : {}),
     ...(value !== undefined ? { configValue: value } : {}),
+    docker: false,
     dryRun: false,
     force: false,
     global: false,

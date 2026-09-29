@@ -56,20 +56,23 @@ nkc clean --safe --yes
 - **Interactive UI**: intuitive Clack terminal workflows with automatic update checks.
 - **Configurable**: project-level settings via `nukecache.config.json`.
 
-## Programmatic API
+## Advanced Commands
 
-```ts
-import { detectCaches, createCleanupPlan, executeCleanup } from "nukecache";
+```bash
+# Sweep all projects across a directory
+nkc sweep ~/Code --days 30
 
-const { context, targets } = await detectCaches({
-  cwd: process.cwd(),
-  scope: "project",
-});
-const plan = createCleanupPlan(context.root, targets);
+# Auto-reclaim a specific amount of disk space
+nkc reclaim 5gb
+nkc reclaim 500mb --dry-run
 
-// Destructive execution after user confirmation:
-const result = await executeCleanup(plan);
-console.log(`Freed ${result.bytesFreed} bytes`);
+# Detect & clean caches whose tool was removed
+nkc orphaned
+nkc clean --orphaned
+
+# Inspect and prune Docker build cache
+nkc list --docker
+nkc clean --docker
 ```
 
 ## License
