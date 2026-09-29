@@ -2,7 +2,15 @@ import { isPackageManager } from "../project/package-manager";
 import type { PackageManager } from "../types";
 
 export type CliCommand =
-  "clean" | "config" | "explain" | "largest" | "list" | "old" | "check-update";
+  | "clean"
+  | "config"
+  | "explain"
+  | "largest"
+  | "list"
+  | "old"
+  | "check-update"
+  | "sweep"
+  | "reclaim";
 export type ConfigAction = "set" | "show" | "unset";
 
 const COMMANDS: CliCommand[] = [
@@ -13,6 +21,8 @@ const COMMANDS: CliCommand[] = [
   "list",
   "old",
   "check-update",
+  "sweep",
+  "reclaim",
 ];
 const OPTIONS = [
   "--all",
@@ -27,6 +37,7 @@ const OPTIONS = [
   "--ignore",
   "--json",
   "--limit",
+  "--min-age",
   "--no-update-check",
   "--project",
   "--safe",
@@ -54,9 +65,12 @@ export interface CliArgs {
   json: boolean;
   manager?: PackageManager;
   limit?: number;
+  minAge?: number;
   noUpdateCheck: boolean;
   project: boolean;
+  reclaimTarget?: string;
   safe: boolean;
+  sweepDir?: string;
   version: boolean;
   yes: boolean;
 }
@@ -113,6 +127,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
       }
       continue;
     }
+    if (args.command === "sweep" && arg && !arg.startsWith("-")) {
+      if (args.sweepDir) throw new Error(`Unexpected argument: ${arg}`);
+      args.sweepDir = arg;
+      continue;
+    }
+    if (args.command === "reclaim" && arg && !arg.startsWith("-")) {
+      if (args.reclaimTarget) throw new Error(`Unexpected argument: ${arg}`);
+      args.reclaimTarget = arg;
+      continue;
+    }
     if (arg && isPackageManager(arg)) {
       if (args.manager) throw new Error(`Unexpected package manager: ${arg}`);
       args.manager = arg;
@@ -155,6 +179,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
       case "--limit":
         args.limit = requirePositiveInteger(argv, ++index, arg);
         break;
+      case "--min-age":
+        args.minAge = requirePositiveInteger(argv, ++index, arg);
+        break;
       case "--no-update-check":
         args.noUpdateCheck = true;
         break;
@@ -191,6 +218,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
   if (
     args.command !== "clean" &&
     args.command !== "check-update" &&
+    args.command !== "sweep" &&
+    args.command !== "reclaim" &&
     (args.dryRun || args.yes || args.all || args.safe || args.force)
   ) {
     throw new Error(`${args.command} does not accept cleanup flags`);
@@ -217,11 +246,17 @@ export function parseCliArgs(argv: string[]): CliArgs {
       throw new Error("config unset requires a key");
     }
   }
-  if (args.command !== "old" && args.days !== undefined) {
-    throw new Error("--days requires the old command");
+  if (args.command !== "old" && args.command !== "sweep" && args.days !== undefined) {
+    throw new Error("--days requires the old or sweep command");
   }
   if (args.command !== "largest" && args.limit !== undefined) {
     throw new Error("--limit requires the largest command");
+  }
+  if (args.command !== "sweep" && args.minAge !== undefined) {
+    throw new Error("--min-age requires the sweep command");
+  }
+  if (args.command === "reclaim" && !args.reclaimTarget) {
+    throw new Error("reclaim requires a size argument, e.g. reclaim 5gb");
   }
   if (args.yes && !args.safe && !args.force) {
     throw new Error("--yes requires --safe, --all, or --force");

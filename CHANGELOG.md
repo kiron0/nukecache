@@ -9,6 +9,9 @@
 - Export `installUpdate` from public API (was missing).
 - Restrict CI workflow triggers to `main` branch for both `push` and `pull_request` events.
 - Expand test coverage for cleanup, detection, and safety-matrix edge cases.
+- Add `sweep <dir>` command: walk a directory tree, find all project roots, detect caches per project, display a sorted table with project, cache path, size, and age. Supports `--days`/`--min-age` to filter by cache age, `--dry-run`, `--json`, and interactive multi-select cleanup.
+- Add `reclaim <size>` command: parse a human-readable size target (e.g. `5gb`, `500mb`), auto-select the safest candidates (safe → oldest → largest) until the target is met, display a plan, and confirm before deleting. Supports `--dry-run`, `--yes`, and `--json`.
+
 
 ## 0.5.0
 

@@ -15,17 +15,22 @@ import { executeCleanup } from "../cleanup/executor";
 import { createCleanupPlan } from "../cleanup/planner";
 import { detectCaches } from "../detect";
 import {
+  formatAge,
   formatBytes,
   formatLargest,
   formatList,
   formatOld,
   formatPlan,
   formatProjectSummary,
+  formatReclaimPlan,
   formatResult,
+  formatSweepTable,
   formatTarget,
   formatWarnings,
   printThanks,
 } from "../output";
+import { parseSize, selectReclaimCandidates } from "../reclaim";
+import { sweep } from "../sweep";
 import type { CacheTarget, CleanupPlan, DetectionResult } from "../types";
 import {
   checkForUpdate,
@@ -82,6 +87,16 @@ async function main(): Promise<void> {
     ) {
       await handleUpdateCheck(version, args);
     }
+    if (args.command === "sweep") {
+      await handleSweep(args, version);
+      return;
+    }
+
+    if (args.command === "reclaim") {
+      await handleReclaim(args, context, config);
+      return;
+    }
+
     if (args.command === "config") {
       if (
         args.configAction === "show" &&
@@ -609,24 +624,254 @@ Usage:
   nukecache pnpm --dry-run          Preview pnpm store pruning
   nukecache list --global           Inspect detected manager caches
   nukecache --dry-run               Preview safe cleanup
+  nukecache sweep <dir>             Scan all projects in <dir> for caches
+  nukecache sweep ~/Code --days 30  Scan projects with caches older than 30d
+  nukecache reclaim 5gb             Auto-select safest caches to free 5 GB
+  nukecache reclaim 500mb --dry-run Preview reclaim without deleting
 
 Options:
   --all                             Select all safe project caches
   --check-update                    Check for package updates (60s rate limit)
   --cwd <path>                      Scan another project directory
+  --days <number>                   Age threshold for old/sweep commands
   --dry-run                         Preview; never delete
-  --days <number>                   Age threshold for old command
   --force                           Include rebuildable/global caches
   --global                          Package-manager cache scope
   --ignore <id|tool|path>           Skip target (repeatable)
   --json                            Emit machine-readable JSON
   --limit <number>                  Result limit for largest command
+  --min-age <days>                  Same as --days for sweep (alias)
   --no-update-check                 Disable update check for this run
   --project                         Include project scope with --global
   --safe                            Restrict cleanup to safe targets
   --yes, -y                         Skip confirmation; global requires --force
   --help, -h                        Show help
   --version, -v                     Show version`);
+}
+
+async function handleSweep(
+  args: CliArgs,
+  _version: string,
+): Promise<void> {
+  const baseDir = args.sweepDir ?? process.cwd();
+  const days = args.days ?? args.minAge;
+  const isInteractive =
+    !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  const progress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  progress?.start(`Scanning ${baseDir}`);
+
+  const result = await sweep(baseDir, {
+    ...(days !== undefined ? { days } : {}),
+  });
+
+  progress?.stop(
+    `Scanned ${result.projects.length} project(s), ${result.allTargets.length} cache(s) found`,
+  );
+
+  if (result.allTargets.length === 0) {
+    if (args.json) {
+      console.log(JSON.stringify({ baseDir, projects: [], totalBytes: 0 }));
+    } else {
+      console.log("No reclaimable caches found.");
+      printThanks();
+    }
+    return;
+  }
+
+  if (args.json) {
+    console.log(
+      JSON.stringify({
+        baseDir,
+        projects: result.projects.map((p) => ({
+          root: p.root,
+          caches: p.detection.targets.map(toTargetJson),
+        })),
+        totalBytes: result.totalBytes,
+      }),
+    );
+    return;
+  }
+
+  console.log(
+    formatSweepTable(result.allTargets, result.baseDir, result.totalBytes),
+  );
+
+  if (args.dryRun) {
+    console.log("\nDry run — no files deleted.");
+    printThanks();
+    return;
+  }
+
+  if (!isInteractive) {
+    printThanks();
+    return;
+  }
+
+  intro("nukecache sweep");
+
+  const sweepEligible = result.allTargets.filter(
+    (t) => !t.trackedByGit && !t.symlink && t.safety === "safe",
+  );
+
+  if (sweepEligible.length === 0) {
+    console.log("No safe targets available for cleanup.");
+    printThanks();
+    return;
+  }
+
+  const selected = await multiselect({
+    message: "Select caches to clear",
+    options: sweepEligible.map((t) => ({
+      value: t.absolutePath,
+      label: `${t.projectRoot.split("/").at(-1)} · ${t.path}  ${formatBytes(t.size)}`,
+      hint: `${t.safety} · ${formatAge(t.modifiedAt)}`,
+    })),
+    initialValues: sweepEligible
+      .filter((t) => t.safety === "safe")
+      .map((t) => t.absolutePath),
+    required: false,
+  });
+
+  if (isCancel(selected)) {
+    cancel("Cancelled. No files deleted.");
+    printThanks();
+    return;
+  }
+
+  if (selected.length === 0) {
+    cancel("No caches selected.");
+    printThanks();
+    return;
+  }
+
+  const approved = await confirm({
+    message: `Clear ${selected.length} cache(s)?`,
+    initialValue: false,
+  });
+
+  if (isCancel(approved) || !approved) {
+    cancel("Cleanup skipped. No files deleted.");
+    printThanks();
+    return;
+  }
+
+  const { removeProjectTarget } = await import("../filesystem/remove");
+  let totalFreed = 0;
+  const removed: string[] = [];
+  const failed: Array<{ path: string; error: string }> = [];
+  const selectedSet = new Set(selected);
+
+  for (const target of sweepEligible) {
+    if (!selectedSet.has(target.absolutePath)) continue;
+    try {
+      await removeProjectTarget(target.projectRoot, target.absolutePath);
+      totalFreed += target.size;
+      removed.push(target.path);
+    } catch (error) {
+      failed.push({
+        path: target.path,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const lines = ["Sweep complete", ""];
+  if (removed.length > 0) lines.push("Removed:", ...removed.map((p) => `  ${p}`));
+  if (failed.length > 0)
+    lines.push("", "Failed:", ...failed.map((f) => `  ${f.path}  ${f.error}`));
+  lines.push("", `Freed: ${formatBytes(totalFreed)}`);
+  console.log(lines.join("\n"));
+  printThanks();
+
+  if (failed.length > 0) process.exitCode = 1;
+}
+
+async function handleReclaim(
+  args: CliArgs,
+  context: Awaited<ReturnType<typeof createProjectContext>>,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+): Promise<void> {
+  const targetBytes = parseSize(args.reclaimTarget!);
+  const isInteractive =
+    !args.json && Boolean(process.stdin.isTTY && process.stdout.isTTY);
+
+  const progress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  progress?.start("Detecting caches");
+
+  const detection = await detectCaches({
+    cwd: context.root,
+    config,
+    scope: "project",
+  });
+  progress?.stop(`Scanned ${detection.context.root}`);
+
+  const candidates = selectReclaimCandidates(detection.targets, targetBytes);
+
+  if (args.json) {
+    const estimated = candidates.reduce((s, t) => s + t.size, 0);
+    console.log(
+      JSON.stringify({
+        targetBytes,
+        estimatedBytes: estimated,
+        candidates: candidates.map(toTargetJson),
+      }),
+    );
+    return;
+  }
+
+  console.log(formatReclaimPlan(candidates, targetBytes));
+
+  if (candidates.length === 0) {
+    printThanks();
+    return;
+  }
+
+  if (args.dryRun) {
+    console.log("\nDry run — no files deleted.");
+    printThanks();
+    return;
+  }
+
+  if (!args.yes) {
+    if (!isInteractive) {
+      throw new Error(
+        "Interactive reclaim requires a TTY. Use reclaim <size> --yes or --dry-run.",
+      );
+    }
+    const approved = await confirm({
+      message: "Clean selected caches?",
+      initialValue: false,
+    });
+    if (isCancel(approved) || !approved) {
+      cancel(
+        approved === false
+          ? "Cleanup skipped. No files deleted."
+          : "Cancelled. No files deleted.",
+      );
+      printThanks();
+      return;
+    }
+  }
+
+  const plan = createCleanupPlan(context.root, detection.targets, {
+    selectedIds: candidates.map((t) => t.id),
+    safeOnly: false,
+    allowGlobal: false,
+  });
+
+  const cleanupProgress =
+    !args.json && process.stderr.isTTY ? spinner() : undefined;
+  cleanupProgress?.start("Clearing caches");
+  const result = await executeCleanup(plan);
+  cleanupProgress?.stop("Cleanup finished");
+
+  console.log(formatResult(result));
+  printThanks();
+
+  if (result.failed.length > 0) process.exitCode = 1;
 }
 
 void main();

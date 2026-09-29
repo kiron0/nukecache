@@ -1,4 +1,4 @@
-import { basename } from "node:path";
+import { basename, relative } from "node:path";
 
 import type {
   CacheTarget,
@@ -174,4 +174,103 @@ export const THANKS_MESSAGE =
 
 export function printThanks(): void {
   console.log(THANKS_MESSAGE);
+}
+
+// ---------------------------------------------------------------------------
+// Sweep formatter
+// ---------------------------------------------------------------------------
+
+export function formatSweepTable(
+  entries: Array<CacheTarget & { projectRoot: string }>,
+  baseDir: string,
+  totalBytes: number,
+): string {
+  if (entries.length === 0) {
+    return "No reclaimable caches found in any project.";
+  }
+
+  const COL_PROJECT = 28;
+  const COL_CACHE = 22;
+  const COL_SIZE = 10;
+
+  const header = [
+    "PROJECT".padEnd(COL_PROJECT),
+    "CACHE".padEnd(COL_CACHE),
+    "SIZE".padEnd(COL_SIZE),
+    "AGE",
+  ].join("  ");
+
+  const divider = "-".repeat(header.length);
+
+  const rows = entries.map((t) => {
+    const proj = truncate(
+      relative(baseDir, t.projectRoot) || ".",
+      COL_PROJECT,
+    );
+    const cache = truncate(t.path, COL_CACHE);
+    const size = formatBytes(t.size).padEnd(COL_SIZE);
+    const age = formatAge(t.modifiedAt);
+    return [
+      proj.padEnd(COL_PROJECT),
+      cache.padEnd(COL_CACHE),
+      size,
+      age,
+    ].join("  ");
+  });
+
+  return [
+    `Sweeping ${baseDir}`,
+    "",
+    header,
+    divider,
+    ...rows,
+    divider,
+    `Total reclaimable: ${formatBytes(totalBytes)}`,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Reclaim formatter
+// ---------------------------------------------------------------------------
+
+export function formatReclaimPlan(
+  candidates: CacheTarget[],
+  targetBytes: number,
+): string {
+  if (candidates.length === 0) {
+    return `No safe candidates found to reclaim ${formatBytes(targetBytes)}.`;
+  }
+
+  const estimated = candidates.reduce((sum, t) => sum + t.size, 0);
+  const COL_SIZE = 10;
+  const COL_PATH = 30;
+
+  const header = [
+    "SIZE".padEnd(COL_SIZE),
+    "CACHE".padEnd(COL_PATH),
+    "AGE",
+  ].join("  ");
+
+  const rows = candidates.map((t) => {
+    const size = formatBytes(t.size).padEnd(COL_SIZE);
+    const path = truncate(t.path, COL_PATH).padEnd(COL_PATH);
+    const age = formatAge(t.modifiedAt);
+    return [size, path, age].join("  ");
+  });
+
+  return [
+    `Need to reclaim: ${formatBytes(targetBytes)}`,
+    "",
+    "Selected safest candidates:",
+    "",
+    header,
+    ...rows,
+    "",
+    `Estimated: ${formatBytes(estimated)}`,
+  ].join("\n");
+}
+
+function truncate(value: string, max: number): string {
+  if (value.length <= max) return value;
+  return `\u2026${value.slice(-(max - 1))}`;
 }
