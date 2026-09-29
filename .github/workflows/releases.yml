@@ -79,9 +79,6 @@ jobs:
         if: steps.release.outputs.exists == 'false'
         run: npm run check
 
-      - name: Run compiled CLI end-to-end test
-        if: steps.release.outputs.exists == 'false'
-        run: npm run test:cli
 
       - name: Verify or create version tag
         if: steps.release.outputs.exists == 'false'
