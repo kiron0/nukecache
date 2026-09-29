@@ -43,7 +43,7 @@
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run build",
+    "check": "npm run format && npm run format:check && npm run lint && npm run typecheck && npm run test:coverage && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
