@@ -79,7 +79,6 @@ jobs:
         if: steps.release.outputs.exists == 'false'
         run: npm run check
 
-
       - name: Verify or create version tag
         if: steps.release.outputs.exists == 'false'
         env:
